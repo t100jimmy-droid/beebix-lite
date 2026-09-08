@@ -1195,3 +1195,247 @@ html.cm-open{ overflow:hidden }
   .cm-act{ grid-column:1 / -1; padding-left:54px }
 }
 @media (prefers-reduced-motion:reduce){ .cm-backdrop,.cm-panel,.cm-row,.cm-btn,.cm-x{ transition:none } }
+
+/* ═════ Lite 版：角標 ═════ */
+/* 首頁卡右上角斜角標：角色的頭會露出卡片上緣，所以斜標放在自己的裁切層裡，不動 .hcard-media 的 overflow */
+.hcard-soon-clip{position:absolute; inset:0; z-index:6; overflow:hidden; border-radius:13px; pointer-events:none}
+.hcard-soon{position:absolute; right:-38px; top:22px; transform:rotate(45deg); width:160px; text-align:center;
+  padding:6px 0; background:var(--t-on-accent); color:var(--a-primary); font-family:var(--ff-m); font-weight:700;
+  font-size:10px; letter-spacing:.14em; text-transform:uppercase; border-top:1px solid rgba(255,199,0,.55);
+  border-bottom:1px solid rgba(255,199,0,.55); box-shadow:0 6px 18px rgba(0,0,0,.45)}
+:root[data-lang="zh"] .hcard-soon, :root[data-lang="th"] .hcard-soon{ font-family:var(--ff-c); font-size:11px; letter-spacing:.06em }
+/* 方案清單：建構中小籤 */
+.ol-soon{display:inline-flex; align-items:center; margin-left:14px; padding:4px 9px; border-radius:6px; vertical-align:middle;
+  border:1px solid rgba(255,199,0,.45); color:var(--a-primary); font-family:var(--ff-m); font-weight:600; font-size:10px;
+  letter-spacing:.10em; text-transform:uppercase; white-space:nowrap; opacity:.85}
+:root[data-lang="zh"] .ol-soon, :root[data-lang="th"] .ol-soon{ font-family:var(--ff-c); font-size:11px; letter-spacing:.02em }
+/* 方案卡右上角標（呼吸點） */
+.oc-soon{position:absolute; right:18px; top:18px; z-index:5; display:inline-flex; align-items:center; gap:8px; padding:8px 12px;
+  border-radius:999px; background:rgba(10,10,12,.72); border:1px solid rgba(255,199,0,.5); color:var(--a-primary);
+  font-family:var(--ff-m); font-weight:700; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; backdrop-filter:blur(8px)}
+.oc-soon[hidden]{display:none}   /* 作者樣式的 display 會蓋過 UA 的 [hidden]，必須明寫 */
+.oc-soon i{width:7px; height:7px; border-radius:50%; background:var(--a-primary); animation:ocPulse 1.6s ease-in-out infinite}
+@keyframes ocPulse{ 0%,100%{opacity:1; transform:scale(1)} 50%{opacity:.35; transform:scale(.7)} }
+:root[data-lang="zh"] .oc-soon, :root[data-lang="th"] .oc-soon{ font-family:var(--ff-c); font-size:12px; letter-spacing:.02em }
+@media (max-width:720px){ .ol-soon{ margin-left:0; display:flex; width:max-content; margin-top:6px } .offer-list button{ flex-wrap:wrap } }
+
+/* ═════ Lite 版：橫幅跑道 → 服務圖示磚 ═════ */
+.lane-tile{width:150px; height:150px; flex:0 0 150px; border-radius:16px; background:var(--s-page);
+  border:2px solid var(--t-on-accent); display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:12px; color:var(--a-primary); transition:transform .45s var(--e-out), background .3s}
+.lane-tile svg{width:54px; height:54px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;
+  transition:transform .45s var(--e-out)}
+.lane-tile span{font-family:var(--ff-m); font-weight:600; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--t-primary); opacity:.88; text-align:center; padding:0 10px; line-height:1.3}
+:root[data-lang="zh"] .lane-tile span, :root[data-lang="th"] .lane-tile span{ font-family:var(--ff-c); font-size:12px; letter-spacing:.02em; text-transform:none }
+.lane-tile:hover{ transform:translateY(-4px); background:var(--ink-3) }
+.lane-tile:hover svg{ transform:scale(1.12) rotate(-6deg) }
+@media (max-width:720px){
+  .lane-tile{width:110px; height:110px; flex:0 0 110px; gap:8px; border-radius:12px}
+  .lane-tile svg{width:38px; height:38px}
+  .lane-tile span{font-size:9px; padding:0 6px}
+  :root[data-lang="zh"] .lane-tile span, :root[data-lang="th"] .lane-tile span{ font-size:10.5px }
+}
+
+/* ═════ Lite 版：自家團隊 → 組織圖 ═════ */
+.studios{min-height:auto; padding:110px 0 120px; display:block}
+.org-bg{position:absolute; inset:-6% 0; width:100%; height:112%; object-fit:cover; opacity:.16; z-index:0; will-change:transform}
+.org-veil{position:absolute; inset:0; z-index:0; pointer-events:none;
+  background:linear-gradient(180deg, var(--s-page) 0%, rgba(11,11,12,.55) 32%, rgba(11,11,12,.7) 68%, var(--s-page) 100%)}
+.studios .shell{position:relative; z-index:2}
+.studios .hairline{margin:8px 0 44px}
+.org-split{margin-bottom:60px; align-items:center}
+.org-facts{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px}
+.org-facts li{padding:24px 20px; border-radius:14px; border:1px solid var(--b-subtle);
+  background:color-mix(in srgb, var(--s-card) 70%, transparent); transition:border-color .35s, transform .45s var(--e-out)}
+.org-facts li:hover{border-color:var(--g-300); transform:translateY(-3px)}
+.org-facts b{display:block; font-family:var(--ff-m); font-weight:700; font-size:36px; letter-spacing:-.03em; line-height:1; color:var(--t-accent)}
+.org-facts span{display:block; margin-top:8px; font-family:var(--ff-c); font-size:13px; color:var(--t-muted)}
+
+.org{position:relative}
+.org-lines{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; z-index:0}
+.org-line{fill:none; stroke:var(--g-300); stroke-width:1.5; stroke-linejoin:round; stroke-linecap:round;
+  stroke-dasharray:var(--len); stroke-dashoffset:var(--len);
+  transition:stroke-dashoffset 1.2s var(--e) .15s, stroke .4s var(--e)}
+.org.play .org-line{stroke-dashoffset:0}
+.org-line.is-on{stroke:var(--a-primary)}
+/* 訊號：一小段亮黃沿著聚焦部門的線路跑 */
+.org-sig{fill:none; stroke:var(--a-hover); stroke-width:3; stroke-linecap:round; opacity:0;
+  stroke-dasharray:22 var(--len,1000); stroke-dashoffset:22; filter:drop-shadow(0 0 6px rgba(255,199,0,.9))}
+.org[data-focus] .org-sig{opacity:1; animation:orgSig 1.6s linear infinite}
+@keyframes orgSig{ from{stroke-dashoffset:22} to{stroke-dashoffset:calc(-1 * var(--len,1000))} }
+
+.org-root{display:flex; justify-content:center; margin-bottom:84px; position:relative; z-index:1}
+.org-depts{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:22px; position:relative; z-index:1}
+.org-dept{position:relative; transition:opacity .45s var(--e)}
+.org[data-focus] .org-dept:not(.on){opacity:.42}
+.org-node{position:relative; display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:14px;
+  background:var(--s-card); border:1px solid var(--b-subtle); text-align:left; color:var(--t-primary);
+  opacity:0; transform:translateY(16px) scale(.96);
+  transition:translate .5s var(--e-out), border-color .35s var(--e), box-shadow .45s var(--e), background .35s var(--e)}
+.org.play .org-node{animation:orgIn .65s var(--e-out) both; animation-delay:var(--d,0ms)}
+@keyframes orgIn{ from{opacity:0; transform:translateY(16px) scale(.96)} to{opacity:1; transform:none} }
+.org-node--root{padding:18px 28px 18px 20px; gap:18px; border-color:rgba(255,199,0,.5);
+  box-shadow:0 0 0 6px rgba(255,199,0,.06), 0 24px 60px rgba(0,0,0,.45)}
+.org-node--head{width:100%; cursor:pointer; border-color:var(--g-300); padding-top:18px}
+.org-node--head:hover, .org-dept.on .org-node--head{border-color:var(--a-primary); translate:0 -3px; box-shadow:0 18px 40px rgba(0,0,0,.45)}
+.org-node--head:focus-visible{outline:2px solid var(--a-primary); outline-offset:3px}
+.org-node--member{padding:10px 12px; gap:12px; background:color-mix(in srgb, var(--s-card) 60%, transparent)}
+.org-node--member:hover{border-color:var(--g-300); background:var(--s-card)}
+/* 六角頭像：外層填色當描邊，::before 內縮一圈當底 */
+.org-hex{--sz:48px; width:var(--sz); height:calc(var(--sz) * 1.1547); flex:0 0 var(--sz); display:grid; place-items:center; position:relative;
+  clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%); background:var(--g-300)}
+.org-hex::before{content:''; position:absolute; inset:1.5px; clip-path:inherit; background:var(--ink-2)}
+.org-hex b{position:relative; font-family:var(--ff-m); font-weight:700; font-size:13px; letter-spacing:.02em; color:var(--t-primary)}
+.org-node--head .org-hex, .org-node--root .org-hex{background:var(--a-primary)}
+.org-node--head .org-hex::before, .org-node--root .org-hex::before{background:var(--a-primary)}
+.org-node--head .org-hex b, .org-node--root .org-hex b{color:var(--t-on-accent)}
+.org-node--root .org-hex b{font-size:18px}
+.org-node--member .org-hex b{font-size:10.5px}
+.org-text{min-width:0; display:grid; gap:3px}
+.org-name{font-family:var(--ff-b); font-weight:700; font-size:15px; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.org-node--root .org-name{font-size:20px}
+.org-node--member .org-name{font-size:14px}
+.org-role{font-family:var(--ff-c); font-size:12px; color:var(--t-muted); line-height:1.35}
+.org-dept-label{position:absolute; right:12px; top:-11px; padding:4px 9px; border-radius:999px; background:var(--s-page);
+  border:1px solid var(--b-subtle); font-family:var(--ff-m); font-weight:600; font-size:9.5px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--t-muted); white-space:nowrap; transition:.35s var(--e)}
+:root[data-lang="zh"] .org-dept-label, :root[data-lang="th"] .org-dept-label{ font-family:var(--ff-c); font-size:11px; letter-spacing:.02em; text-transform:none }
+.org-dept.on .org-dept-label{background:var(--a-primary); color:var(--t-on-accent); border-color:var(--a-primary)}
+.org-team{list-style:none; margin:18px 0 0 22px; display:grid; gap:10px}
+.org-blurb{display:none}
+.org-chev{display:none}
+
+/* 聚焦說明面板（桌機）*/
+.org-detail{margin-top:36px; min-height:96px; padding:22px 26px; border-radius:16px; border:1px solid var(--b-subtle);
+  background:color-mix(in srgb, var(--s-card) 62%, transparent); backdrop-filter:blur(10px);
+  display:grid; grid-template-columns:auto minmax(0,1fr); gap:6px 30px; align-items:center;
+  transition:border-color .4s var(--e), opacity .16s var(--e)}
+.org-detail.on{border-color:rgba(255,199,0,.45)}
+.org-detail.swap{opacity:0}
+.od-k{font-family:var(--ff-m); font-weight:600; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--t-accent); white-space:nowrap}
+:root[data-lang="zh"] .od-k, :root[data-lang="th"] .od-k{ font-family:var(--ff-c); font-size:13px; letter-spacing:.02em; text-transform:none }
+.od-n{grid-row:2; font-family:var(--ff-m); font-weight:700; font-size:34px; letter-spacing:-.03em; line-height:1; color:var(--t-primary)}
+.od-n small{font-family:var(--ff-c); font-weight:400; font-size:13px; color:var(--t-muted); letter-spacing:0}
+.od-b{grid-column:2; grid-row:1; font-family:var(--ff-c); font-size:15px; line-height:1.7; color:var(--t-primary)}
+.od-tag{display:inline-block; margin-right:10px; padding:2px 8px; border-radius:6px; background:rgba(255,199,0,.12); color:var(--t-accent); font-size:11px; vertical-align:2px}
+.od-chips{grid-column:2; grid-row:2; display:flex; flex-wrap:wrap; gap:8px}
+.od-chips span{padding:6px 10px; border-radius:8px; border:1px solid var(--b-subtle); font-family:var(--ff-c); font-size:12px; color:var(--t-muted)}
+.od-hint{grid-column:2; grid-row:1 / span 2; font-family:var(--ff-c); font-size:14px; line-height:1.7; color:var(--t-muted)}
+
+@media (max-width:1180px){
+  .org-depts{gap:14px}
+  .org-node{padding:12px}
+  .org-name{font-size:14px}
+  .org-role{font-size:11.5px}
+}
+/* ≤900px：手風琴 */
+@media (max-width:900px){
+  .org-lines, .org-detail{display:none}
+  .org-root{justify-content:flex-start; margin-bottom:22px}
+  .org-node--root{width:100%}
+  .org-depts{grid-template-columns:1fr; gap:12px}
+  .org-dept{margin-left:22px; padding-left:16px; border-left:2px solid var(--g-300)}
+  .org-dept::before{content:''; position:absolute; left:-2px; top:36px; width:16px; height:2px; background:var(--g-300)}
+  .org-dept.open{border-left-color:var(--a-primary)}
+  .org-dept.open::before{background:var(--a-primary)}
+  .org[data-focus] .org-dept:not(.on){opacity:1}
+  .org-node--head{padding-right:44px}
+  .org-chev{display:block; position:absolute; right:18px; top:50%; width:10px; height:10px; margin-top:-7px;
+    border-right:2px solid var(--t-muted); border-bottom:2px solid var(--t-muted); transform:rotate(45deg); transition:transform .4s var(--e)}
+  .org-dept.open .org-chev{transform:rotate(225deg); margin-top:-3px; border-color:var(--a-primary)}
+  .org-team{margin:0 0 0 10px; overflow:hidden; max-height:0; opacity:0; transition:max-height .5s var(--e), opacity .4s var(--e), margin .4s var(--e)}
+  .org-dept.open .org-team{max-height:640px; opacity:1; margin-top:12px}
+  .org-blurb{display:block; margin:0 0 0 10px; max-height:0; overflow:hidden; opacity:0; font-family:var(--ff-c); font-size:14px; line-height:1.7; color:var(--t-muted);
+    transition:max-height .5s var(--e), opacity .4s var(--e), margin .4s var(--e)}
+  .org-dept.open .org-blurb{max-height:240px; opacity:1; margin-top:12px}
+  .org-facts{grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px}
+  .org-facts li{padding:16px 12px}
+  .org-facts b{font-size:26px}
+  .org-facts span{font-size:12px}
+}
+@media (prefers-reduced-motion:reduce){
+  .org-node{opacity:1; transform:none; animation:none !important}
+  .org-line{stroke-dashoffset:0; transition:none}
+  .org-sig{display:none}
+}
+
+/* ═════ Lite 版：成績單（品質儀表 + 數據火花圖）═════ */
+.why .split.why-split{align-items:start}
+.score{position:relative}
+.score-head{display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:6px;
+  font-family:var(--ff-m); font-weight:600; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--t-muted)}
+:root[data-lang="zh"] .score-head, :root[data-lang="th"] .score-head{font-family:var(--ff-c); font-size:13px; letter-spacing:.04em; text-transform:none}
+.score-live{display:inline-flex; align-items:center; gap:7px; font-style:normal; color:var(--t-accent)}
+.score-live em{width:7px; height:7px; border-radius:50%; background:var(--a-primary); display:block}
+.score-list.play .score-live em, .score-live em{animation:ocPulse 1.8s ease-in-out infinite}
+.score-list{display:block; border-top:1px solid var(--b-subtle)}
+.sc-row{border-bottom:1px solid var(--b-subtle)}
+.sc-btn{width:100%; display:grid; grid-template-columns:auto minmax(0,1fr) auto auto; align-items:center;
+  gap:20px; padding:20px 2px; text-align:left; color:var(--t-muted); transition:color .35s var(--e)}
+.sc-btn:hover{color:var(--t-primary)}
+.sc-btn:focus-visible{outline:2px solid var(--a-primary); outline-offset:3px; border-radius:8px}
+.sc-n{font-family:var(--ff-m); font-weight:500; font-size:11px; letter-spacing:.1em; color:var(--t-ghost); transition:color .35s var(--e)}
+.sc-k{font-family:var(--ff-b); font-weight:600; font-size:19px; letter-spacing:-.01em; color:currentColor;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.sc-meter{display:flex; align-items:flex-end; gap:3px; height:24px}
+.sc-meter i{width:3px; height:9px; border-radius:2px; background:var(--g-200); display:block;
+  transition:height .45s var(--e-out) var(--d,0ms), background .45s var(--e) var(--d,0ms), opacity .35s var(--e)}
+.score-list.play .sc-meter i.on{height:24px; background:var(--a-primary); opacity:.42}
+.sc-row.on .sc-meter i.on{opacity:1; box-shadow:0 0 8px rgba(255,199,0,.55)}
+.sc-val{display:flex; align-items:baseline; gap:2px; font-family:var(--ff-m); font-weight:700;
+  font-size:22px; letter-spacing:-.02em; color:var(--t-primary); font-variant-numeric:tabular-nums}
+.sc-val em{font-style:normal; font-size:12px; color:var(--t-muted)}
+.sc-row.on .sc-n{color:var(--t-accent)}
+.sc-row.on .sc-btn{color:var(--t-primary)}
+.sc-drop{max-height:0; overflow:hidden; opacity:0;
+  transition:max-height .5s var(--e), opacity .4s var(--e), margin .4s var(--e)}
+.sc-row.on .sc-drop{max-height:260px; opacity:1; margin:0 0 22px 44px}
+.sc-v{font-family:var(--ff-c); font-weight:500; font-size:15px; line-height:1.6; color:var(--t-primary)}
+.sc-d{margin-top:8px; padding-left:14px; border-left:2px solid var(--a-primary);
+  font-family:var(--ff-c); font-size:14px; line-height:1.75; color:var(--t-muted)}
+
+/* 數字磚：大數字 → 標籤 → 近八季走勢條 → 註腳 */
+.stats li.stat-tile{position:relative; overflow:hidden; padding:26px 24px 22px; display:flex; flex-direction:column}
+.stats li.stat-tile b{font-size:44px; transition:transform .4s var(--e-out); transform-origin:left bottom}
+.stat-tile:hover b{transform:scale(1.04)}
+.stats li .stat-k{display:block; margin-top:9px; font-family:var(--ff-b); font-weight:600; font-size:15px; color:var(--t-primary)}
+.stat-tile.is-hero .stat-k{color:var(--t-on-accent)}
+.stats li .stat-spark{display:flex; align-items:flex-end; justify-content:space-between; gap:6px;
+  height:46px; width:100%; margin:auto 0 0; padding-top:20px; box-sizing:content-box}
+.stats li .stat-spark i{flex:1 1 auto; max-width:16px; height:0; min-height:3px; border-radius:2px 2px 0 0;
+  background:var(--g-300); display:block; transition:height .7s var(--e-out) var(--d,0ms), background .35s var(--e)}
+.stat-tile.play .stat-spark i{height:var(--h)}
+.stats li .stat-spark i:last-child{background:var(--g-500)}      /* 當期用亮一階，看得出「現在在哪」 */
+.stat-tile:hover .stat-spark i{background:color-mix(in srgb, var(--a-primary) 60%, transparent)}
+.stat-tile:hover .stat-spark i:last-child{background:var(--a-primary)}
+.stat-tile.is-hero .stat-spark i{background:rgba(11,11,12,.22)}
+.stat-tile.is-hero .stat-spark i:last-child{background:rgba(11,11,12,.5)}
+.stat-tile.is-hero:hover .stat-spark i{background:rgba(11,11,12,.4)}
+.stat-tile.is-hero:hover .stat-spark i:last-child{background:rgba(11,11,12,.75)}
+.stats li .stat-cap{display:block; margin-top:12px; padding-top:11px;
+  border-top:1px solid var(--b-subtle); font-family:var(--ff-c); font-size:12.5px; line-height:1.5; color:var(--t-muted)}
+.stat-tile.is-hero .stat-cap{border-top-color:rgba(11,11,12,.22); color:rgba(11,11,12,.72)}
+
+@media (max-width:1024px){ .why .split.why-split{gap:44px} }
+@media (max-width:720px){
+  .sc-btn{grid-template-columns:auto minmax(0,1fr) auto; gap:12px 14px; padding:16px 2px}
+  .sc-meter{grid-column:1/-1; height:18px; gap:2.5px; justify-content:space-between}
+  .sc-meter i{flex:1 1 auto; width:auto; height:7px}
+  .score-list.play .sc-meter i.on{height:18px}
+  .sc-k{font-size:17px; white-space:normal}
+  .sc-val{font-size:19px}
+  .sc-row.on .sc-drop{margin-left:0}
+  .stats li.stat-tile{padding:20px 16px 18px}
+  .stats li .stat-spark{height:30px; gap:4px; padding-top:14px}
+  .stats li .stat-spark i{max-width:10px}
+  .stats li.stat-tile b{font-size:30px}
+  .stats li .stat-k{font-size:13.5px; margin-top:6px}
+  .stats li .stat-cap{margin-top:10px; padding-top:9px; font-size:11.5px}
+}
+@media (prefers-reduced-motion:reduce){
+  .sc-meter i, .stats li .stat-spark i{transition:none}
+  .score-list .sc-meter i.on{height:24px; background:var(--a-primary); opacity:.85}
+  .stats li .stat-spark i{height:var(--h)}
+  .score-live em{animation:none}
+}

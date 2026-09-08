@@ -259,8 +259,7 @@ function marquees(){
 
 
 /* 依標題決定卡片該去哪：輪播有 → 作品區並轉到那張；Offer 有 → 方案區並切到那項 */
-const linkFor = title => FEATURED.some(g => g.t === title) ? '#games'
-                       : OFFER.some(o => o.t === title)    ? '#offer' : '#games';
+const linkFor = title => OFFER.some(o => o.t === title) ? '#offer' : '#offer';
 const dataFor = title => {
   const i = FEATURED.findIndex(g => g.t === title); if (i >= 0) return ` data-arc="${i}"`;
   const j = OFFER.findIndex(o => o.t === title);    if (j >= 0) return ` data-offer="${j}"`;
@@ -277,6 +276,7 @@ function hero(){
         <img class="bg" src="${g.bg}" alt="" loading="lazy">
         <img class="hcard-char" src="${g.ch}" alt="" loading="lazy">
         <span class="hcard-tag">${t(g.tag)}</span>
+        <span class="hcard-soon-clip"><span class="hcard-soon" data-i18n="tag.soon">${t('tag.soon')}</span></span>
         <div class="hcard-veil"></div>
         <div class="hcard-foot"><h3>${g.t}</h3>${ARW}</div>
       </div>
@@ -317,7 +317,9 @@ function hero(){
 function lanes(){
   const build = (el, list) => {
     if (!el) return;
-    const html = list.map(src => `<img src="${src}" alt="" loading="lazy">`).join('');
+    const html = list.map(sv =>
+      `<div class="lane-tile"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[sv.i]}</svg>`
+      + `<span data-i18n="${sv.k}">${t(sv.k)}</span></div>`).join('');
     el.innerHTML = html + html;
     if (REDUCED) return;
     const dir = +(el.dataset.dir || 1);
@@ -350,7 +352,7 @@ function arc(){
   $$('.drag-hint, .arc-nav', el).forEach(n => n.remove());
 
   stage.innerHTML = FEATURED.map(g => `
-    <a class="gcard" href="#games" data-i="${FEATURED.indexOf(g)}" aria-label="${g.t}">
+    <a class="gcard" href="#offer" data-i="${FEATURED.indexOf(g)}" aria-label="${g.t}">
       <div class="gcard-in spot">
         <img src="${g.img}" alt="" loading="eager" decoding="async">
         <span class="gcard-tag">${t(g.tag)}</span>
@@ -614,7 +616,7 @@ function offer(){
   list.innerHTML = OFFER.map((o, i) => `
     <li${i === 0 ? ' class="on"' : ''} role="presentation">
       <button type="button" role="tab" aria-selected="${i === 0}"
-              tabindex="${i === 0 ? 0 : -1}"><span class="n">${o.n}</span>${t(o.t)}</button>
+              tabindex="${i === 0 ? 0 : -1}"><span class="n">${o.n}</span>${t(o.t)}${o.tag !== 'tag.slots' ? `<span class="ol-soon" data-i18n="offer.building">${t('offer.building')}</span>` : ''}</button>
     </li>`).join('');
 
   const bg = $('.oc-bg', card), ch = $('.oc-char', card);
@@ -637,6 +639,7 @@ function offer(){
     timer = setTimeout(() => {
       bg.src = o.bg; ch.src = o.ch;
       txt.textContent = t(o.d); cta.textContent = t(o.cta);
+      const soon = $('#ocSoon'); if (soon) soon.hidden = o.tag === 'tag.slots';
       card.classList.remove('swap');
     }, REDUCED ? 0 : 240);
   };
@@ -671,15 +674,221 @@ function lists(){
   if (caps) caps.innerHTML = CAPS.map(([k, v]) =>
     `<li><span class="k">${t(k)}</span><span class="v">${t(v)}</span></li>`).join('');
 
-  const proof = $('#proofList');
-  if (proof) proof.innerHTML = PROOF.map(([k, v]) =>
-    `<li><i class="dot"></i><span class="k">${t(k)}</span><span class="v">${t(v)}</span></li>`).join('');
+}
 
+/* ═════ 9b · 成績單：品質儀表 + 數據火花圖 ═════
+   儀表是分段條（24 格），格數＝分數；點一根支柱展開說明，閒置時自動巡覽下一根。
+   數字磚在進場時同時跑「數字滾動 + 近八季走勢長條」，滑過再顯示註腳。 */
+const SEG = 24;
+function scoreboard(){
+  dispose('score');
+
+  /* ── 品質儀表 ── */
+  const list = $('#proofList');
+  if (list){
+    list.innerHTML = PROOF.map((p, i) => {
+      const on = Math.round(p.score / 100 * SEG);
+      const segs = Array.from({ length:SEG }, (_, n) =>
+        `<i${n < on ? ' class="on"' : ''} style="--d:${n * 26}ms"></i>`).join('');
+      return `<li class="sc-row" data-i="${i}">
+        <button type="button" class="sc-btn" aria-expanded="false" aria-controls="scDrop-${i}">
+          <span class="sc-n">0${i + 1}</span>
+          <span class="sc-k">${t(p.k)}</span>
+          <span class="sc-meter" aria-hidden="true">${segs}</span>
+          <span class="sc-val"><b data-count="${p.score}" data-suffix="">${p.score}</b><em>%</em></span>
+        </button>
+        <div class="sc-drop" id="scDrop-${i}"><p class="sc-v">${t(p.v)}</p><p class="sc-d">${t(p.d)}</p></div>
+      </li>`;
+    }).join('');
+
+    const rows = $$('.sc-row', list);
+    let act = -1, hover = false, hold = 0, inView = false;
+    const setAct = i => {
+      act = i;
+      rows.forEach((r, n) => {
+        const on = n === i;
+        r.classList.toggle('on', on);
+        $('.sc-btn', r).setAttribute('aria-expanded', String(on));
+      });
+    };
+    rows.forEach((r, i) => listen('score', $('.sc-btn', r), 'click', () => {
+      setAct(act === i ? -1 : i); hold = performance.now() + 9000;
+    }));
+    listen('score', list, 'pointerenter', () => { hover = true; });
+    listen('score', list, 'pointerleave', () => { hover = false; hold = performance.now() + 1200; });
+    listen('score', list, 'focusin',  () => { hover = true; });
+    listen('score', list, 'focusout', () => { hover = false; });
+    if (!REDUCED) every('score', 3800, () => {
+      if (!inView || document.hidden || hover || performance.now() < hold) return;
+      setAct((act + 1) % rows.length);
+    });
+    const io = new IntersectionObserver(es => es.forEach(e => {
+      inView = e.isIntersecting;
+      list.classList.toggle('play', inView);
+      if (inView && act < 0) setAct(0);
+    }), { threshold:.25 });
+    io.observe(list);
+    onDispose('score', () => io.disconnect());
+  }
+
+  /* ── 數字磚 ── */
   const stats = $('#statsList');
-  if (stats) stats.innerHTML = STATS.map(s =>
-    `<li class="spot${s.hero ? ' is-hero' : ''}">`
-    + `<b data-count="${s.n}" data-suffix="${s.suffix}">${s.n.toLocaleString()}${s.suffix}</b>`
-    + `<span>${t(s.label)}</span></li>`).join('');
+  if (stats){
+    stats.innerHTML = STATS.map(s => {
+      const bars = s.trend.map((h, i) =>
+        `<i style="--h:${h}%; --d:${i * 55}ms"></i>`).join('');
+      return `<li class="stat-tile spot${s.hero ? ' is-hero' : ''}">
+        <b data-count="${s.n}" data-suffix="${s.suffix}">${s.n.toLocaleString()}${s.suffix}</b>
+        <span class="stat-k">${t(s.label)}</span>
+        <span class="stat-spark" role="img" aria-label="${t('why.trend')}">${bars}</span>
+        <span class="stat-cap">${t(s.cap)}</span>
+      </li>`;
+    }).join('');
+    const io2 = new IntersectionObserver(es => es.forEach(e =>
+      e.target.classList.toggle('play', e.isIntersecting)), { threshold:.3 });
+    $$('.stat-tile', stats).forEach(el => io2.observe(el));
+    onDispose('score', () => io2.disconnect());
+  }
+}
+
+/* ═════ 8 · 自家團隊：組織圖 ═════
+   節點由 ORG 產生；連接線用 SVG 依實際節點位置畫（換語言、換寬度都重量）。
+   桌機（>900px）：樹狀圖，點主管聚焦該部門、其他部門退場；閒置時每 3.4 秒自動巡覽下一個部門。
+   ≤900px：手風琴，點主管展開成員與職責，不畫線、不自動巡覽。 */
+const ORG_DESK = matchMedia('(min-width:901px)');
+function orgChart(){
+  dispose('org');
+  const root = $('#orgChart'), detail = $('#orgDetail'), facts = $('#orgFacts');
+  if (!root) return;
+
+  if (facts) facts.innerHTML = ORG_FACTS.map(f =>
+    `<li><b data-count="${f.n}" data-suffix="">${f.n}</b><span>${t(f.label)}</span></li>`).join('');
+
+  const hex  = (p, sz) => `<span class="org-hex" style="--sz:${sz}px"><b>${p.init}</b></span>`;
+  const text = p => `<span class="org-text"><span class="org-name">${p.name}</span><span class="org-role">${t(p.role)}</span></span>`;
+  let n = 0;
+  const delay = () => ` style="--d:${(n++) * 70}ms"`;
+
+  root.innerHTML = `
+    <svg class="org-lines" aria-hidden="true"></svg>
+    <div class="org-root"><div class="org-node org-node--root"${delay()}>${hex(ORG.root, 64)}${text(ORG.root)}</div></div>
+    <div class="org-depts">${ORG.depts.map(d => `
+      <div class="org-dept" data-k="${d.k}">
+        <button type="button" class="org-node org-node--head" aria-expanded="false" aria-controls="orgTeam-${d.k}"${delay()}>
+          <span class="org-dept-label">${t(d.label)} · ${1 + d.team.length}</span>
+          ${hex(d.head, 48)}${text(d.head)}<i class="org-chev" aria-hidden="true"></i>
+        </button>
+        <ul class="org-team" id="orgTeam-${d.k}">${d.team.map(m =>
+          `<li class="org-node org-node--member"${delay()}>${hex(m, 36)}${text(m)}</li>`).join('')}</ul>
+        <p class="org-blurb">${t(d.blurb)}</p>
+      </div>`).join('')}
+    </div>`;
+
+  const svg = $('.org-lines', root);
+  const depts = $$('.org-dept', root);
+  const byK = {};                                   // k → { d, len }
+
+  /* 量測節點位置，畫出：執行長 → 匯流排 → 各主管；主管 → 左側直軌 → 每位成員 */
+  const drawLines = () => {
+    svg.replaceChildren();
+    if (!ORG_DESK.matches) return;
+    const R = root.getBoundingClientRect();
+    const rel = el => { const b = el.getBoundingClientRect();
+      return { x:b.left - R.left, y:b.top - R.top, w:b.width, h:b.height, cx:b.left - R.left + b.width / 2, cy:b.top - R.top + b.height / 2 }; };
+    const rn = rel($('.org-node--root', root));
+    depts.forEach(dept => {
+      const hn = rel($('.org-node--head', dept));
+      const busY = Math.round(rn.y + rn.h + (hn.y - rn.y - rn.h) / 2) + .5;
+      let d = `M${rn.cx},${rn.y + rn.h} V${busY} H${hn.cx} V${hn.y}`;
+      const ms = $$('.org-node--member', dept).map(rel);
+      if (ms.length){
+        const railX = Math.round(hn.x + 11) + .5;
+        d += ` M${railX},${hn.y + hn.h} V${ms[ms.length - 1].cy}`;
+        ms.forEach(m => { d += ` M${railX},${m.cy} H${m.x}`; });
+      }
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('class', 'org-line'); path.setAttribute('d', d); path.dataset.k = dept.dataset.k;
+      svg.appendChild(path);
+      const len = Math.ceil(path.getTotalLength());
+      path.style.setProperty('--len', len);
+      byK[dept.dataset.k] = { d, len, path };
+    });
+    const sig = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    sig.setAttribute('class', 'org-sig'); svg.appendChild(sig);
+    if (focus) applySig(focus);
+  };
+  const applySig = k => {
+    const sig = $('.org-sig', svg), it = byK[k];
+    if (!sig || !it) return;
+    sig.setAttribute('d', it.d); sig.style.setProperty('--len', it.len);
+  };
+
+  /* 聚焦某部門 */
+  let focus = null;
+  const renderDetail = k => {
+    if (!detail) return;
+    const d = ORG.depts.find(x => x.k === k);
+    detail.classList.toggle('on', !!d);
+    detail.innerHTML = d
+      ? `<span class="od-k">${t(d.label)}</span><b class="od-n">${1 + d.team.length} <small>${t('org.headcount')}</small></b>`
+        + `<p class="od-b"><span class="od-tag">${t('org.ships')}</span>${t(d.blurb)}</p>`
+        + `<div class="od-chips">${[d.head, ...d.team].map(m => `<span>${t(m.role)}</span>`).join('')}</div>`
+      : `<span class="od-k">${ORG.depts.length} ${t('org.depts')} · ${ORG_FACTS[1].n} ${t('org.people')}</span><p class="od-hint">${t('org.hint')}</p>`;
+  };
+  const setFocus = k => {
+    focus = k;
+    if (k) root.dataset.focus = k; else delete root.dataset.focus;
+    depts.forEach(d => {
+      const on = d.dataset.k === k;
+      d.classList.toggle('on', on);
+      $('.org-node--head', d).setAttribute('aria-expanded', String(on));
+      if (byK[d.dataset.k]) byK[d.dataset.k].path.classList.toggle('is-on', on);
+    });
+    if (k) applySig(k);
+    if (detail){
+      detail.classList.add('swap');
+      setTimeout(() => { renderDetail(k); detail.classList.remove('swap'); }, 160);
+    }
+  };
+  renderDetail(null);
+
+  /* 互動：點主管；Esc 取消；游標在圖上時暫停自動巡覽 */
+  let hover = false, holdUntil = 0, inView = false;
+  depts.forEach(dept => {
+    const head = $('.org-node--head', dept);
+    listen('org', head, 'click', () => {
+      if (ORG_DESK.matches){ setFocus(focus === dept.dataset.k ? null : dept.dataset.k); holdUntil = performance.now() + 9000; }
+      else { const open = dept.classList.toggle('open'); head.setAttribute('aria-expanded', String(open)); }
+    });
+  });
+  listen('org', root, 'pointerenter', () => { hover = true; });
+  listen('org', root, 'pointerleave', () => { hover = false; holdUntil = performance.now() + 1500; });
+  listen('org', root, 'focusin',  () => { hover = true; });
+  listen('org', root, 'focusout', () => { hover = false; });
+  listen('org', document, 'keydown', e => { if (e.key === 'Escape' && focus) setFocus(null); });
+
+  /* 自動巡覽（只在畫面內、桌機、閒置時）*/
+  if (!REDUCED) every('org', 3400, () => {
+    if (!inView || document.hidden || !ORG_DESK.matches || hover || performance.now() < holdUntil) return;
+    const ks = ORG.depts.map(d => d.k), i = ks.indexOf(focus);
+    setFocus(ks[(i + 1) % ks.length]);
+  });
+
+  /* 進場：畫線 + 節點依序彈入；離開視窗就重置，回來再播一次 */
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    inView = e.isIntersecting;
+    if (inView){ drawLines(); requestAnimationFrame(() => root.classList.add('play')); }
+    else { root.classList.remove('play'); if (focus) setFocus(null); }
+  }), { threshold:.18 });
+  io.observe(root);
+  onDispose('org', () => io.disconnect());
+
+  let rt = 0;
+  const redraw = () => { clearTimeout(rt); rt = setTimeout(drawLines, 120); };
+  listen('org', window, 'resize', redraw);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawLines);
+  // 手風琴模式切回桌機時，展開狀態要清掉
+  listen('org', ORG_DESK, 'change', () => { depts.forEach(d => d.classList.remove('open')); setFocus(null); drawLines(); });
 }
 
 /* ═════ 10a · 聯絡彈窗：行動型連結一律開這裡；區塊導覽不受影響 ═════ */
@@ -781,23 +990,25 @@ const countUp = el => {
   requestAnimationFrame(step);
 };
 function counters(){
+  dispose('count');
   const inview = new Set();
   const io = new IntersectionObserver(es => es.forEach(e => {
     if (e.isIntersecting){ if (!inview.has(e.target)){ inview.add(e.target); countUp(e.target); } }
     else inview.delete(e.target);
   }), { threshold:.4 });
   $$('[data-count]').forEach(el => io.observe(el));
+  onDispose('count', () => io.disconnect());
 
   /* 定時重播：每 14 秒把看得見的數字重滾一次；首屏在畫面內時連進場動畫一起重播 */
   if (REDUCED) return;
   const hero = $('#hero');
   const REPLAY_MS = 14000;
-  setInterval(() => {
+  every('count', REPLAY_MS, () => {
     if (document.hidden) return;
     const heroOn = hero && hero.getBoundingClientRect().bottom > innerHeight * .35 && hero.getBoundingClientRect().top < innerHeight * .5;
     if (heroOn) playHero();                        // 含 .hero-stats 的揭示；數字由下面重滾
     inview.forEach(el => countUp(el));
-  }, REPLAY_MS);
+  });
 }
 
 /* ═════ 12 · 通用視差 ═════ */
@@ -1301,12 +1512,13 @@ const boot = () => {
   langSwitcher();
 
   nav(); contactModal(); marquees(); hero(); lanes(); lists();
-  arc(); soon(); soonCopy(); offer(); lineupMeta(); counters(); parallax(); aboutViz(); combHover();
+  soon(); soonCopy(); offer(); orgChart(); scoreboard(); counters(); parallax(); aboutViz(); combHover();
   heroParallax(); spotlight(); magnetic(); chrome(); cellGrid();
   reveals(); heroChoreo();
 
   // 切換語系時要重建的區塊（內含由 JS 產生的文字）
-  rebuilders = [() => { hero(); lists(); arc(); soon(); offer(); spotlight(); magnetic(); relabelCells(); }];
+  rebuilders = [() => { hero(); lists(); soon(); offer(); orgChart(); scoreboard();
+                        counters(); spotlight(); magnetic(); relabelCells(); }];
 
   applyI18n();
   requestAnimationFrame(() => document.body.classList.add('ready'));
