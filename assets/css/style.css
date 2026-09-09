@@ -2051,7 +2051,7 @@ body{ transition:opacity .38s cubic-bezier(.22,.61,.36,1) }
 .org-dept.on .org-node--member:nth-child(1){ animation-delay:.05s }
 .org-dept.on .org-node--member:nth-child(2){ animation-delay:.13s }
 .org-dept.on .org-node--member:nth-child(3){ animation-delay:.21s }
-@keyframes orgMemberIn{ from{ opacity:.45; transform:translateX(-8px) } }
+@keyframes orgMemberIn{ from{ opacity:.45; transform:translateX(-8px) } to{ opacity:1; transform:none } }
 .org-facts li b{ font-variant-numeric:tabular-nums }
 .org-facts li b.done{ animation:statSnap .34s cubic-bezier(.22,.61,.36,1) }
 
@@ -2089,7 +2089,7 @@ body{ transition:opacity .38s cubic-bezier(.22,.61,.36,1) }
    改成隨文字流動，永遠掛在最後一行的字尾 */
 .statement .ghost .gl--b{ display:block; padding-left:clamp(72px,12%,150px) }
 .statement .ghost .gl--b > span[data-i18n]{ display:inline }
-.statement .deco{ display:inline-flex; vertical-align:.30em; margin-left:22px }
+.statement .deco{ display:flex; margin:18px 0 0 }
 @media (max-width:720px){ .statement .ghost .gl--b{ padding-left:0 } }
 
 /* ── 保底：進場動畫把元素藏起來時，一定要有純 CSS 的回復路徑 ──
