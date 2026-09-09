@@ -356,7 +356,7 @@ body.nav-open .burger span:nth-child(3){top:21px;transform:rotate(-45deg)}
 :root[data-lang="zh"] .lk-label,          :root[data-lang="th"] .lk-label,
 :root[data-lang="zh"] .lk,                :root[data-lang="th"] .lk{
   font-family:var(--ff-c); letter-spacing:.02em; font-size:12px }
-@media (max-width:1099px){ .viz,.lineup{display:none} .head-row{display:block} }
+@media (max-width:1099px){ .lineup{display:none} .head-row{display:block} }
 @media (prefers-reduced-motion: reduce){
   .viz-dot{animation:none}
 }
@@ -427,7 +427,8 @@ body.nav-open .burger span:nth-child(3){top:21px;transform:rotate(-45deg)}
           mask-image:radial-gradient(circle 200px at var(--hx,-999px) var(--hy,-999px),
                      #000 0%, rgba(0,0,0,.62) 46%, transparent 74%);
 }
-.banner-comb--hot.on{ opacity:1 }
+.banner-comb--hot{ visibility:hidden; transition:opacity .35s var(--e), visibility 0s .35s }
+.banner-comb--hot.on{ opacity:1; visibility:visible; transition:opacity .35s var(--e), visibility 0s }
 .comb-run{position:absolute; inset:-300px; display:block;
   background:url('../img/honeycomb-hot.svg') repeat center / 142px 246px;
   will-change:transform; animation:combDrift 26s linear infinite}
@@ -1439,3 +1440,696 @@ html.cm-open{ overflow:hidden }
   .stats li .stat-spark i{height:var(--h)}
   .score-live em{animation:none}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Lite v2 · 全站動態語言（motion language）
+   ─────────────────────────────────────────────────────────────────────
+   一區一個主角時刻，其餘用同一套曲線與節拍支撐。
+   曲線：out＝落定、spring＝有重量的過衝、in＝果斷退場、snap＝放電
+   節拍：區塊內 --rd 每項 70ms 錯開；重播統一掛 14 秒
+   分工：translate 屬性＝捲動視差 / transform＝hover 與傾斜，兩者不互相覆蓋
+   ═══════════════════════════════════════════════════════════════════════ */
+:root{
+  --e-spring:cubic-bezier(.34,1.56,.64,1);
+  --e-soft:cubic-bezier(.34,1.35,.64,1);
+  --e-in:cubic-bezier(.55,0,.1,1);
+  --e-snap:cubic-bezier(.7,0,.2,1);
+  --t-fast:.28s; --t-base:.52s; --t-slow:.8s; --t-draw:1.05s;
+  --hex-solid:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 54 62'%3E%3Cpolygon points='27,1 53,15.9 53,46.1 27,61 1,46.1 1,15.9' fill='%23000'/%3E%3C/svg%3E");
+}
+
+/* ── 進場：改用 translate 屬性，transform 空出來給 hover／傾斜 ── */
+[data-reveal]{
+  transform:none; translate:0 26px;
+  transition:opacity var(--t-slow) var(--e-out) var(--rd,0ms), translate var(--t-slow) var(--e-out) var(--rd,0ms);
+}
+[data-reveal].in{ translate:none }
+/* 骨架元素不歸零 —— 跳區時畫面才不會整片全黑等淡入 */
+.hairline[data-reveal], .eyebrow[data-reveal]{ opacity:1; translate:none }
+.hairline[data-reveal]{ transform:scaleX(0); transform-origin:0 50%;
+  transition:transform var(--t-draw) var(--e-out) var(--rd,0ms) }
+.hairline[data-reveal].in{ transform:scaleX(1) }
+/* 髮線兩端的六角端點：線畫到底時「咔」一下亮起 */
+.hairline{ position:relative; overflow:visible }
+.hairline::before,.hairline::after{ content:''; position:absolute; top:50%; width:9px; height:10px;
+  translate:0 -50%; background:var(--a-primary); -webkit-mask:var(--hex-solid) center/100% 100% no-repeat;
+  mask:var(--hex-solid) center/100% 100% no-repeat; scale:0;
+  transition:scale .42s var(--e-spring) calc(var(--rd,0ms) + .55s) }
+.hairline::before{ left:-4px } .hairline::after{ right:-4px }
+.hairline[data-reveal].in::before,.hairline[data-reveal].in::after{ scale:1 }
+/* 眉標：黃槓先點火，文字才收攏進來 */
+.eyebrow[data-reveal] .rule{ transform:scaleX(0); transform-origin:0 50%;
+  transition:transform .7s var(--e-out) calc(var(--rd,0ms) + 80ms) }
+.eyebrow[data-reveal].in .rule{ transform:scaleX(1) }
+.eyebrow[data-reveal] > span{ opacity:0; translate:-6px 0;
+  transition:opacity .5s var(--e) calc(var(--rd,0ms) + .22s), translate .6s var(--e-out) calc(var(--rd,0ms) + .22s) }
+.eyebrow[data-reveal].in > span{ opacity:1; translate:none }
+.eyebrow{ font-size:13px; font-weight:700; color:color-mix(in srgb, var(--t-primary) 74%, transparent) }
+.eyebrow .rule{ height:4px }
+.sec-label .line{ height:1.5px; opacity:.5 }
+/* 按鈕：彈跳落定 */
+.btn[data-reveal]{ translate:0 18px; transition:opacity .5s var(--e) var(--rd,0ms), translate .7s var(--e-spring) var(--rd,0ms) }
+/* 大標揭示：帶一點斜度砸下來，字距收緊「坐實」 */
+.rv-line{ transform-origin:0 100% }
+.gl--b.rv-line, .split-title em.rv-line, .cta-title span.rv-line{
+  transition:clip-path .95s var(--e-out), transform 1.05s var(--e-soft), opacity .5s }
+
+/* 捲動速度餵給進度條發光。時長不再用繼承變數控制（見 main.js play() 的說明）。 */
+.progress{ box-shadow:0 0 calc(var(--vg,0) * 14px) rgba(255,199,0,.85) }
+
+/* ── 導覽列：遲滯收起 + 落回時上緣閃一道黃光 ── */
+.site-header{ transition:transform .62s cubic-bezier(.22,1.15,.36,1), opacity .3s var(--e) }
+.site-header.is-hidden{ transform:translateY(-124%) scale(.97); opacity:0;
+  transition:transform .42s var(--e-in), opacity .25s }
+.site-header.is-back .nav-pill{ box-shadow:inset 0 1px 0 rgba(255,199,0,.6), 0 18px 48px rgba(0,0,0,.55) }
+.site-header.is-scrolled .nav-pill{ transform:scale(.965); transform-origin:50% 0;
+  transition:transform .45s var(--e-out) }
+/* 開場：膠囊從上方落下、進度條刷過去 */
+.site-header{ transform:translateY(-30px); opacity:0 }
+body.ready .site-header{ transform:none; opacity:1;
+  transition:transform .72s cubic-bezier(.22,1.15,.36,1) .1s, opacity .4s var(--e) .1s }
+body.ready .progress{ animation:barCharge .95s var(--e-snap) .5s both }
+@keyframes barCharge{ 0%{transform:scaleX(0); opacity:1} 62%{transform:scaleX(1); opacity:1} 100%{transform:scaleX(1); opacity:0} }
+body{ transition:opacity .38s cubic-bezier(.22,.61,.36,1) }
+
+/* ── 導覽：滑動六角指示器取代每個連結各自的底線硬跳 ── */
+.nav-links{ position:relative }
+.nav-ind{ position:absolute; left:0; bottom:-3px; width:10px; height:11px; opacity:0;
+  background:var(--a-primary); -webkit-mask:var(--hex-solid) center/100% 100% no-repeat;
+  mask:var(--hex-solid) center/100% 100% no-repeat; pointer-events:none;
+  transition:transform .5s cubic-bezier(.22,1.15,.36,1), opacity .25s var(--e) }
+.nav-links a::after{ display:none }
+.nav-links a.current::after{ display:none }
+/* 下拉：像一疊卡片展開，項目逐條滑入 */
+.submenu{ transform:translateY(-6px) scale(.965); transform-origin:50% 0;
+  transition:opacity .18s var(--e), transform .4s cubic-bezier(.22,1.2,.36,1), visibility .4s }
+.submenu a{ opacity:0; translate:0 -6px;
+  transition:opacity .26s var(--e), translate .32s var(--e-out), color .25s }
+.has-menu:hover .submenu a{ opacity:1; translate:none }
+.submenu a:nth-child(1){ transition-delay:40ms } .submenu a:nth-child(2){ transition-delay:78ms }
+.submenu a:nth-child(3){ transition-delay:116ms } .submenu a:nth-child(4){ transition-delay:154ms }
+.chev{ transition:transform .38s var(--e-spring) }
+
+/* ── 回頂鈕：閱讀進度環 + 黃底反相 + 發射感 ── */
+.to-top{ transform:translateY(18px) scale(.8);
+  transition:opacity .3s var(--e), transform .55s var(--e-spring), visibility .3s, background .3s var(--e), color .3s var(--e) }
+.to-top::after{ content:''; position:absolute; inset:-5px; border-radius:50%; z-index:-1;
+  background:conic-gradient(var(--a-primary) calc(var(--sp,0) * 1turn), rgba(255,255,255,.16) 0);
+  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)) }
+.to-top.inv{ background:var(--s-page); color:var(--a-primary); box-shadow:0 10px 30px rgba(0,0,0,.4) }
+.to-top.inv:hover{ background:var(--ink-3) }
+.to-top:active{ transform:scale(.88); transition-duration:.11s }
+.to-top.fire{ animation:toTopFire .42s var(--e-out) }
+@keyframes toTopFire{ 30%{ transform:translateY(-7px) scale(1.08) } 100%{ transform:none } }
+
+/* ── 環境光：改徑向漸層（免 blur，便宜又亮得起來）＋ 呼吸 ── */
+/* 原本是 filter:blur(260px) —— 靜態但貴，好處是只畫一次就進快取。
+   改成徑向漸層便宜很多，但「七個 900–1100px 的圖層同時做 transform 動畫」
+   實測會讓全站每三幀掉一幀。折衷：只有首屏那兩顆會呼吸，而且只動 opacity
+   （opacity 一定走合成器，transform+scale 會逼出重繪），其餘維持靜態。 */
+.glow{ filter:none;
+  background:radial-gradient(closest-side, var(--a-primary) 0%, rgba(255,199,0,.34) 40%, transparent 72%) }
+.glow--heroA{ opacity:.30; will-change:opacity; animation:glowBreathe 13s cubic-bezier(.45,0,.55,1) infinite alternate }
+.glow--heroB{ opacity:.20; will-change:opacity; animation:glowBreathe 17s cubic-bezier(.45,0,.55,1) -6s infinite alternate }
+.glow--right{ opacity:.14 }  .glow--left{ opacity:.13 }
+.glow--bottom{ opacity:.12 } .glow--center{ opacity:.10 }
+.glow--topright{ opacity:.15 }
+@keyframes glowBreathe{ to{ opacity:.06 } }
+
+/* ── 區塊交界：不留硬邊 ── */
+.backdrop--down{ background:linear-gradient(180deg,#0B0B0C 0%,#16171A 26%,#131418 64%,#0B0B0C 100%) }
+.backdrop--up{ background:linear-gradient(0deg,#0B0B0C 0%,#16171A 26%,#131418 64%,#0B0B0C 100%) }
+.soon::before,.soon::after{ content:''; position:absolute; left:0; right:0; height:150px; z-index:2; pointer-events:none }
+.soon::before{ top:0; background:linear-gradient(180deg,var(--s-page),transparent) }
+.soon::after{ bottom:0; background:linear-gradient(0deg,var(--s-page),transparent) }
+/* 暗→黃：黑色六角「牙口」咬進黃底，捲進來時一格格被黃色填滿 */
+.banner::before,.cta::before{ content:''; position:absolute; left:0; right:0; top:-1px; height:132px;
+  z-index:3; pointer-events:none; background:var(--s-page);
+  -webkit-mask-image:linear-gradient(180deg,#000 0,#000 34%,transparent 78%), var(--hex-solid);
+  mask-image:linear-gradient(180deg,#000 0,#000 34%,transparent 78%), var(--hex-solid);
+  -webkit-mask-size:100% 100%, 54px 62px; mask-size:100% 100%, 54px 62px;
+  -webkit-mask-repeat:no-repeat, repeat-x; mask-repeat:no-repeat, repeat-x;
+  -webkit-mask-position:0 0, 0 100%; mask-position:0 0, 0 100%;
+  -webkit-mask-composite:source-over; mask-composite:add }
+
+/* ── 切語系：文字被吹散再聚回來 ── */
+.lang-swap [data-i18n], .lang-swap .rv-line, .lang-swap .offer-card, .lang-swap .org, .lang-swap .score-list{
+  opacity:.05; filter:blur(5px); translate:0 4px;
+  transition:opacity .16s var(--e), filter .16s var(--e), translate .16s var(--e) }
+[data-i18n]{ transition:opacity .34s var(--e-out), filter .34s var(--e-out), translate .34s var(--e-out) }
+
+/* ── 按鈕：按下去有被接住的感覺 ── */
+.btn:active{ transform:translateY(0) scale(.97); transition-duration:.11s }
+.btn:active .arw{ transform:translateX(2px) scale(.93) }
+.btn:hover .arw{ transform:translateX(6px) rotate(-10deg);
+  transition:transform .45s var(--e-spring), background .3s var(--e) }
+.btn-ghost:active,.lane-tile:active,.hcard:active{ transition-duration:.1s }
+
+/* ── 首屏重播：歸零的那一幀不能有過渡，否則退場與進場會打架 ── */
+.hero.hero-reset *{ transition:none !important; animation:none !important }
+.hero .is-out{ opacity:0 !important; translate:0 -10px !important;
+  transition:opacity .2s var(--e-in), translate .2s var(--e-in) !important }
+
+@media (prefers-reduced-motion: reduce){
+  .glow{ animation:none }
+  .site-header, body.ready .site-header{ transform:none; opacity:1; transition:none }
+  body.ready .progress{ animation:none }
+  .hairline[data-reveal], .eyebrow[data-reveal] .rule{ transform:none }
+  .hairline::before,.hairline::after{ scale:1 }
+  .eyebrow[data-reveal] > span{ opacity:1; translate:none }
+  .banner::before,.cta::before{ clip-path:none }
+  .lang-swap [data-i18n]{ opacity:1; filter:none; translate:none }
+  .to-top.fire{ animation:none }
+}
+
+/* ── 手機選單：常駐 DOM + 可見性動畫（原本是 display 硬切，零過渡）── */
+@media (max-width:1024px){
+  .nav-links{
+    display:grid; position:fixed; left:24px; right:24px; top:88px; z-index:95;
+    background:color-mix(in srgb, var(--s-card) 94%, transparent);
+    border:1px solid var(--b-subtle); border-radius:22px; padding:18px; gap:4px;
+    visibility:hidden; opacity:0; pointer-events:none;
+    transform:translateY(-14px) scale(.97); transform-origin:50% 0;
+    transition:opacity .18s var(--e), transform .22s var(--e-in), visibility 0s .22s;
+  }
+  body.nav-open .nav-links{
+    visibility:visible; opacity:1; pointer-events:auto; transform:none;
+    transition:opacity .22s var(--e), transform .52s cubic-bezier(.22,1.15,.36,1), visibility 0s;
+  }
+  .nav-links > li{ opacity:0; translate:-14px 0;
+    transition:opacity .3s var(--e), translate .42s var(--e-out) }
+  body.nav-open .nav-links > li{ opacity:1; translate:none }
+  body.nav-open .nav-links > li:nth-child(1){ transition-delay:60ms }
+  body.nav-open .nav-links > li:nth-child(2){ transition-delay:105ms }
+  body.nav-open .nav-links > li:nth-child(3){ transition-delay:150ms }
+  body.nav-open .nav-links > li:nth-child(4){ transition-delay:195ms }
+  body.nav-open .nav-links > li:nth-child(5){ transition-delay:240ms }
+  /* .submenu 的 translate:-50% 只在桌機需要；手機沒重設會把子項推出畫面左緣 */
+  body.nav-open .nav-links .submenu{ translate:none; transform:none; opacity:1; visibility:visible }
+  body.nav-open .nav-links .submenu a{ opacity:1; translate:none; transition-delay:0s }
+  .nav-ind{ display:none }
+  .burger span{ transition:top .3s var(--e), transform .42s var(--e-spring), opacity .2s }
+}
+@media (prefers-reduced-motion: reduce){
+  @media (max-width:1024px){
+    .nav-links, body.nav-open .nav-links, .nav-links > li{ transition:none }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Lite v2 · 首屏
+   主角時刻＝閃電劈中品牌板那一瞬：尖端噴火花、整片蜂窩由落點向外亮一圈、
+   大標被震一下、蜜蜂落地站定。
+   ═══════════════════════════════════════════════════════════════════════ */
+/* .hero-lockup 是滿寬的 block，會蓋住蜜蜂中段讓 hover 永遠打不到 */
+.hero-lockup{ pointer-events:none }
+.hero-title,.brand-plate{ pointer-events:auto }
+.hero .eyebrow{ position:relative; z-index:4 }      /* 手機蜜蜂的靴子不准壓到文字 */
+
+/* 蜜蜂：進場用 scale/rotate 個別屬性，與 transform 的漂浮動畫可以疊加不打架 */
+.hero-bee{ z-index:3; opacity:0; scale:.9; rotate:-7deg; will-change:transform, translate;
+  transition:opacity .42s var(--e), scale .95s var(--e-spring), rotate .95s var(--e-spring), filter .45s var(--e) }
+.hero-bee.in{ opacity:1; scale:1; rotate:0deg }
+.hero-bee:focus-visible{ outline:2px solid var(--a-primary); outline-offset:6px; border-radius:12px }
+.hero-bee:hover{ filter:drop-shadow(0 26px 46px rgba(0,0,0,.55)) drop-shadow(0 0 36px rgba(255,199,0,.55)) }
+.hero-bee.punch{ animation:beePunch .54s var(--e-spring) both }
+.hero-bee.hop{ animation:beeHop .94s var(--e-spring) both }
+@keyframes beePunch{
+  0%{ transform:none } 18%{ transform:translateX(-18px) rotate(-6deg) scale(.98,1.02) }
+  44%{ transform:translateX(32px) rotate(4deg) scale(1.06,.95) }
+  70%{ transform:translateX(-6px) rotate(-1.5deg) } 100%{ transform:none } }
+@keyframes beeHop{
+  0%{ transform:none } 12%{ transform:translateY(6px) scale(1.08,.92) }
+  40%{ transform:translateY(-42px) scale(.95,1.06) } 62%{ transform:translateY(0) scale(1.10,.90) }
+  80%{ transform:translateY(-8px) scale(.99,1.01) } 100%{ transform:none } }
+/* 背光與落地影：蜜蜂終於站在空間裡，而不是貼在平面上的去背貼紙 */
+.bee-halo,.bee-shadow{ position:absolute; z-index:0; pointer-events:none; opacity:0;
+  transition:opacity .8s var(--e) .25s }
+.hero-bee.in ~ .bee-shadow,.hero-bee.in ~ .bee-halo{ opacity:1 }
+.bee-halo{ right:180px; top:40px; width:520px; height:520px;
+  background:radial-gradient(closest-side, rgba(255,199,0,.5), transparent 64%);
+  animation:beeHalo 5.6s ease-in-out infinite }
+.bee-shadow{ right:296px; top:352px; width:210px; height:30px; border-radius:50%;
+  background:radial-gradient(closest-side, rgba(0,0,0,.7), transparent 72%);
+  animation:beeShadow 5.6s ease-in-out infinite }
+@keyframes beeHalo{ 0%,100%{ opacity:.34; scale:1 } 30%{ opacity:.5; scale:1.07 } 62%{ opacity:.4; scale:1.02 } }
+@keyframes beeShadow{ 0%,100%{ opacity:.62; scale:1 } 30%{ opacity:.4; scale:.85 } 62%{ opacity:.54; scale:.94 } }
+@media (max-width:1440px){ .bee-halo{ right:194px } .bee-shadow{ right:310px } }
+@media (max-width:1180px){ .bee-halo,.bee-shadow{ display:none } .hero-bee{ pointer-events:auto } }
+
+/* 閃電：陡入陡出的「放電」，掃完閃一下，兩次重播之間仍有微弱電流 */
+.bolt-streak{ transition:clip-path .5s var(--e-snap) }
+.bolt-streak.in{ animation:boltFlash .38s ease-out .48s }
+.sec.pulse .bolt-streak.in{ animation:boltHum 1.6s ease-in-out }
+@keyframes boltFlash{ 0%{ filter:brightness(2.4) drop-shadow(0 0 22px rgba(255,199,0,.95)) }
+  45%{ filter:brightness(1.3) drop-shadow(0 0 10px rgba(255,199,0,.5)) } 100%{ filter:none } }
+@keyframes boltHum{ 0%,100%{ filter:brightness(1) } 50%{ filter:brightness(1.22) drop-shadow(0 0 8px rgba(255,199,0,.35)) } }
+/* 大標被閃電震一下 */
+.hero-lockup.hit .hero-title span{ animation:titleHit .44s var(--e-spring) }
+.hero-lockup.hit .hero-title .l2{ animation-delay:60ms }
+@keyframes titleHit{ 0%{ transform:none } 34%{ transform:translateX(8px) skewX(-2.2deg) } 100%{ transform:none } }
+
+/* 品牌板：被閃電劈出來，落定後掃一道光 */
+.brand-plate{ opacity:0; transform:translate(-26px,10px) scale(.86) rotate(-4deg); transform-origin:0 100%;
+  overflow:hidden; position:relative;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.45), inset 0 -3px 0 rgba(0,0,0,.16), 0 18px 40px -16px rgba(255,199,0,.55);
+  transition:opacity .32s ease-out, transform .68s var(--e-spring), background .3s }
+.brand-plate.in{ opacity:1; transform:none }
+.brand-plate::after{ content:''; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.5) 50%,transparent 60%); transform:translateX(-135%) }
+.brand-plate.in::after,.brand-plate:hover::after{ animation:plateSheen .78s cubic-bezier(.22,.61,.36,1) .22s forwards }
+@keyframes plateSheen{ to{ transform:translateX(135%) } }
+.brand-plate:hover{ transform:translateY(-4px) }
+.brand-plate:active{ transform:translateY(-1px) scale(.96); transition-duration:.1s }
+
+/* 數據欄：黃線由上往下充能，數字依序「叮」住 */
+.hero-stats{ position:relative }
+.hero-stats::before{ content:''; position:absolute; left:-3px; top:0; bottom:0; width:3px;
+  background:var(--a-primary); transform:scaleY(0); transform-origin:50% 0;
+  transition:transform .75s var(--e-out) .1s }
+.hero-stats.in::before{ transform:scaleY(1) }
+.hero-stats.shake{ animation:statsShake .32s var(--e-out) }
+@keyframes statsShake{ 0%{ transform:none } 30%{ transform:translateX(4px) } 62%{ transform:translateX(-3px) } 100%{ transform:none } }
+.hero-stats b{ font-variant-numeric:tabular-nums }
+.hero-stats b.done{ animation:statSnap .34s cubic-bezier(.22,.61,.36,1) }
+@keyframes statSnap{ 0%{ transform:scale(1.08); text-shadow:0 0 20px rgba(255,199,0,.75) } 100%{ transform:none; text-shadow:none } }
+.hero-stats span{ font-size:12px; letter-spacing:.08em; color:rgba(255,255,255,.64) }
+
+/* 首屏卡片：兩側都漸層淡出，不留硬切 */
+.hero-cards{ -webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 92%,transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 6%,#000 92%,transparent) }
+/* 卡片 hover 分層：先傾 → 角色跳出 → 背景才慢一拍拉近（景深） */
+.hcard-media{ box-shadow:0 30px 60px -28px rgba(0,0,0,.8);
+  transition:transform .42s cubic-bezier(.22,1,.36,1), box-shadow .45s var(--e), border-color .3s }
+.hcard:hover .hcard-media{ border-color:rgba(255,199,0,.35);
+  box-shadow:0 0 0 1px rgba(255,199,0,.5), 0 36px 72px -24px rgba(255,199,0,.4), 0 28px 54px -20px rgba(0,0,0,.8) }
+.hcard:hover .hcard-char{ transform:translateY(-18px) scale(1.06);
+  transition:transform .58s var(--e-spring) .06s }
+.hcard:hover .bg{ transform:scale(1.08); transition:transform .85s var(--e-out) .1s }
+.hcard:hover .hcard-tag{ transform:translateY(-3px); transition:transform .4s var(--e-out) .12s }
+.hcard:hover .card-arw{ transform:translateX(6px); box-shadow:0 0 0 6px rgba(255,199,0,.16);
+  transition:transform .42s var(--e-spring) .16s, box-shadow .3s var(--e), background .3s }
+.hcard:hover .hcard-veil{ background:linear-gradient(180deg,transparent 32%,rgba(8,8,10,.3) 60%,rgba(8,8,10,.94)) }
+.hcard-tag,.hcard-veil{ transition:transform .3s var(--e), background .4s var(--e) }
+.hcard:active .hcard-media{ transform:scale(.985); transition-duration:.09s }
+/* 斜角標：只在 hover 與 14 秒重播時掃一道光，不做整片閃爍 */
+.hcard-soon{ overflow:hidden;
+  background:linear-gradient(180deg,#1b1b1f,#0b0b0c);
+  box-shadow:0 6px 18px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,199,0,.35);
+  text-shadow:0 0 8px rgba(255,199,0,.3) }
+.hcard-soon::after{ content:''; position:absolute; inset:0;
+  background:linear-gradient(100deg,transparent 30%,rgba(255,199,0,.5) 50%,transparent 70%); transform:translateX(-145%) }
+.hcard:hover .hcard-soon::after,.hcard.tick .hcard-soon::after{ animation:soonSheen .64s cubic-bezier(.22,.61,.36,1) .16s }
+@keyframes soonSheen{ to{ transform:translateX(145%) } }
+
+/* 六角格：點亮要快、熄滅要慢，游標拖過去才有餘燼而不是均勻光暈 */
+/* 進 100ms 點燃、退 550ms 餘燼；原本進退同曲線，游標拖過去像一團均勻光暈。
+   時長不能再拉長：每一格的 filter 過渡都是一次重繪，同時存活的格數等於每幀的重繪數。 */
+.cell{ transition:background-color .55s var(--e-out), filter .55s var(--e-out), scale .55s var(--e-out) }
+.cell.hot{ transition-duration:.1s,.1s,.14s }
+/* 漣漪一次會掃過上百格，這些格子一律不掛 drop-shadow —— 那是留給游標附近十幾格的昂貴效果 */
+.cell.ping{ filter:none !important; transition-duration:.12s,0s,.16s }
+
+@media (max-width:1180px){
+  /* 蜜蜂的靴子原本壓掉「GAME CONTENT STUDIO」 */
+  .hero-bee{ margin:-12px -2vw -18px auto }
+}
+@media (max-width:720px){
+  .hero-bee{ margin:-6px -3vw -12px auto }
+  .hero-stats span{ font-size:10px; letter-spacing:.04em }
+  .hero-stats b{ font-size:24px } .hero-stats .stat:first-child b{ font-size:28px }
+  .hero-cards{ -webkit-mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent) }
+}
+@media (prefers-reduced-motion: reduce){
+  .hero-bee{ opacity:1; scale:1; rotate:0deg; animation:none }
+  .bee-halo,.bee-shadow{ opacity:1; animation:none }
+  .brand-plate{ opacity:1; transform:none }
+  .brand-plate.in::after,.brand-plate:hover::after,.bolt-streak.in{ animation:none }
+  .hero-stats::before{ transform:scaleY(1) }
+  .hero-lockup.hit .hero-title span,.hero-bee.punch,.hero-bee.hop,.hero-stats.shake{ animation:none }
+  .hcard.tick .hcard-soon::after,.hcard:hover .hcard-soon::after{ animation:none }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Lite v2 · 宣言區
+   主角時刻＝黃線與灰線在正中央交會的那一幀：面板向外「噹」一聲泛光、
+   命中數跳一下、白色大標被黃光掃過。
+   ═══════════════════════════════════════════════════════════════════════ */
+.statement{ position:relative }
+.head-row{ position:relative }
+/* 玻璃面板背後原本什麼都沒有，blur(12px) 等於白做 */
+.viz-halo{ position:absolute; right:-150px; top:-130px; width:620px; height:620px; z-index:1;
+  pointer-events:none; opacity:.9;
+  background:radial-gradient(closest-side, rgba(255,199,0,.22), transparent 70%);
+  animation:haloBreathe 6.5s ease-in-out infinite }
+.viz-halo::after{ content:''; position:absolute; inset:0;
+  background:url('../img/honeycomb.svg') repeat center / 142px 246px; opacity:.09;
+  -webkit-mask-image:radial-gradient(closest-side,#000 22%,transparent 68%);
+  mask-image:radial-gradient(closest-side,#000 22%,transparent 68%) }
+@keyframes haloBreathe{ 50%{ opacity:.55; scale:1.07 } }
+
+/* 面板：精密雙層描邊，取代幾乎看不見的單色細框 */
+.viz{ border:1px solid transparent;
+  background:linear-gradient(color-mix(in srgb,var(--s-card) 76%,transparent),color-mix(in srgb,var(--s-card) 76%,transparent)) padding-box,
+             linear-gradient(160deg, rgba(255,255,255,.18), rgba(255,199,0,.14) 42%, rgba(255,255,255,.03)) border-box;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 30px 60px -24px rgba(0,0,0,.75) }
+/* hover 位移原本被 [data-reveal].in{transform:none} 蓋掉 → 是死 CSS。提高特異度並升級成跟手傾斜 */
+.viz[data-reveal].in{ transition:transform .55s var(--e-out), border-color .4s var(--e), box-shadow .4s var(--e) }
+@media (hover:hover){
+  .viz[data-reveal].in:hover{
+    transform:perspective(900px) rotateY(calc(var(--rx,0) * 6deg)) rotateX(calc(var(--ry,0) * -5deg)) translateY(-4px) }
+  .viz:hover .viz-dot{ animation-duration:1s }
+  .viz:hover .viz-cv{ filter:drop-shadow(0 0 7px rgba(255,199,0,.35)) }
+}
+.viz-cv{ transition:filter .4s var(--e) }
+.viz-plot{ cursor:crosshair;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent),
+                     linear-gradient(180deg,transparent,#000 12%,#000 90%,transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent),
+             linear-gradient(180deg,transparent,#000 12%,#000 90%,transparent);
+  -webkit-mask-composite:source-in; mask-composite:intersect }
+.viz-plot.poke .viz-cv{ animation:vizPoke .44s var(--e-out) }
+@keyframes vizPoke{ 0%{ transform:scale(1) } 35%{ transform:scale(1.035) } 100%{ transform:scale(1) } }
+/* 交會＝重拍：邊框向外放一圈光暈，像敲鐘 */
+.viz.hit{ animation:vizHit .72s var(--e-out) }
+.viz.hit--big{ animation-duration:.95s }
+@keyframes vizHit{
+  0%{ box-shadow:0 0 0 0 rgba(255,199,0,.5), inset 0 1px 0 rgba(255,255,255,.06), 0 30px 60px -24px rgba(0,0,0,.75) }
+  100%{ box-shadow:0 0 0 24px rgba(255,199,0,0), inset 0 1px 0 rgba(255,255,255,.06), 0 30px 60px -24px rgba(0,0,0,.75) } }
+.viz.hit .viz-dot{ animation:vizDotHit .55s var(--e-out) }
+@keyframes vizDotHit{ 0%{ transform:scale(2.8); opacity:1 } 100%{ transform:scale(1) } }
+.statement .gl--b{ transition:text-shadow .6s var(--e) }
+.statement.flash .gl--b{ text-shadow:0 0 30px rgba(255,199,0,.4) }
+/* 讀數：不再抖，改由三條小黃條跟著物理起伏呼吸 */
+.viz-reads b{ font-size:22px; font-variant-numeric:tabular-nums; transition:color .35s var(--e) }
+.viz-reads li{ position:relative; padding-bottom:7px }
+.viz-reads li::after{ content:''; position:absolute; left:0; bottom:0; height:2px; width:100%;
+  background:var(--a-primary); opacity:.75; transform:scaleX(var(--p,0)); transform-origin:0 50%;
+  transition:transform .26s linear }
+.viz-reads b.tick{ animation:vizPop .48s var(--e-spring) }
+@keyframes vizPop{ 0%{ transform:scale(1.24); color:var(--a-primary) } 100%{ transform:none; color:var(--t-primary) } }
+.viz-head{ font-size:11px } .viz-legend,.viz-reads span{ font-size:10.5px; letter-spacing:.12em }
+/* 面板進場：像儀器開機，一層一層上電，掃描線一過曲線才顯影。
+   ⚠ 不可以把 clip-path 下在 .viz 自己身上：進場觀察器用 threshold .01，
+   被裁到可見面積 0 的元素永遠達不到門檻，動畫會把自己的觸發條件擋掉。 */
+.viz[data-reveal]{ transition:opacity .5s ease var(--rd,0ms), translate .8s var(--e-out) var(--rd,0ms) }
+.viz > *{ opacity:0; translate:0 10px;
+  transition:opacity .5s var(--e-out), translate .6s var(--e-out) }
+.viz.in > *{ opacity:1; translate:none }
+.viz.in .viz-head{ transition-delay:calc(var(--rd,0ms) + 40ms) }
+.viz.in .viz-plot{ transition-delay:calc(var(--rd,0ms) + 140ms) }
+.viz.in .viz-legend{ transition-delay:calc(var(--rd,0ms) + 300ms) }
+.viz.in .viz-reads{ transition-delay:calc(var(--rd,0ms) + 380ms) }
+.viz-plot::after{ content:''; position:absolute; inset:0; z-index:2; pointer-events:none;
+  background:linear-gradient(90deg, transparent 0, var(--s-card) 20px);
+  box-shadow:-2px 0 0 var(--a-primary); transform:translateX(0);
+  transition:transform 1.15s cubic-bezier(.65,0,.35,1) calc(var(--rd,0ms) + 280ms) }
+.viz.in .viz-plot::after{ transform:translateX(106%) }
+
+/* 大標：灰色第一行原本對比 1.7:1 像一塊色塊，加描邊與每 9 秒一道斜光 */
+.ghost .gl--a{ color:transparent; -webkit-text-stroke:1px rgba(255,255,255,.11);
+  background:linear-gradient(105deg,#3C3F47 0 42%,#5A5E68 50%,#3C3F47 58% 100%) 0 0/260% 100%;
+  -webkit-background-clip:text; background-clip:text; background-position:-40% 0 }
+.sec.pulse .ghost .gl--a{ animation:ghostSheen 1.9s cubic-bezier(.4,0,.2,1) }
+@keyframes ghostSheen{ 0%{ background-position:120% 0 } 100%{ background-position:-40% 0 } }
+.ghost .gl--b{ text-shadow:0 0 70px rgba(255,199,0,.1), 0 2px 0 rgba(0,0,0,.35) }
+/* .deco 本身就是 <i>，所以 `.deco i` 永遠選不到 → 黃色中線從來沒被畫出來過 */
+.deco{ position:relative; width:120px; min-height:23px; justify-content:space-between;
+  background:linear-gradient(var(--a-primary),var(--a-primary)) no-repeat 0 50%/120px 3px }
+.sec.pulse .deco{ animation:decoBar 2.4s var(--e-out) }
+.deco::before,.deco::after{ background:var(--g-300) }
+@keyframes decoBar{ 0%{ background-size:0 3px } 24%,78%{ background-size:120px 3px } 100%{ background-size:0 3px } }
+
+/* 裝飾環：硬邊實心圓 → 六角遮罩的圓弧，頭尾自然淡出並緩慢自轉 */
+.ring{ border:0; opacity:.5;
+  background:conic-gradient(from 200deg, var(--a-primary) 0 34%, transparent 58% 100%);
+  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px));
+  mask:radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px)) }
+.ring::after{ content:''; position:absolute; inset:24px; background:linear-gradient(180deg,rgba(255,199,0,.35),transparent 78%);
+  -webkit-mask:var(--hex-solid) center/100% 100% no-repeat; mask:var(--hex-solid) center/100% 100% no-repeat; opacity:.55 }
+.ring--l{ animation:ringSpin 48s linear infinite } .ring--r{ animation:ringSpin 36s linear infinite reverse }
+@keyframes ringSpin{ to{ rotate:360deg } }
+
+/* 能力清單：逐列敲上來，每敲一下黃線閃過再冷卻成灰髮線 */
+.kv li{ position:relative; z-index:1 }
+.kv.in li{ animation:kvIn .68s var(--e-out) both; animation-delay:calc(var(--rd,0ms) + var(--i,0) * 100ms) }
+@keyframes kvIn{ from{ opacity:0; transform:translateY(15px) } }
+.kv li::before{ content:''; position:absolute; inset:0 -16px; border-radius:12px; z-index:-1;
+  background:color-mix(in srgb,var(--s-card) 74%,transparent); opacity:0; transform:scaleX(.96); transform-origin:left;
+  transition:opacity .3s var(--e), transform .45s var(--e-out) }
+.kv li::after{ content:''; position:absolute; left:-16px; top:50%; width:9px; height:10px;
+  translate:0 -50%; background:var(--a-primary);
+  -webkit-mask:var(--hex-solid) center/100% 100% no-repeat; mask:var(--hex-solid) center/100% 100% no-repeat;
+  scale:0; transition:scale .36s var(--e-spring) }
+.kv .k,.kv .v{ transition:color .3s var(--e), transform .34s var(--e-out) }
+@media (hover:hover){
+  .kv li:hover::before{ opacity:1; transform:none }
+  .kv li:hover::after{ scale:1 }
+  .kv li:hover .k{ color:var(--a-primary); transform:translateX(6px) }
+  .kv li:hover .v{ color:var(--t-primary); transform:translateX(-5px) }
+}
+/* 觸控與桌機閒置時的替代節奏：由 JS 逐列點名 */
+.kv li.is-on::before{ opacity:1; transform:none }
+.kv li.is-on::after{ scale:1 }
+.kv li.is-on .k{ color:var(--a-primary); transform:translateX(6px) }
+.kv li.is-on .v{ color:var(--t-primary); transform:translateX(-5px) }
+
+/* ≤1099px：面板改成全寬遙測條，而不是整個拿掉 */
+@media (max-width:1099px){
+  .head-row{ display:grid; grid-template-columns:1fr; gap:26px }
+  .viz{ flex:none; width:100%; max-width:660px; margin:0; padding:12px 16px 12px }
+  .viz-plot{ height:92px }
+  .viz-halo{ right:-200px; top:-80px; width:460px; height:460px; opacity:.6 }
+}
+@media (max-width:720px){
+  .viz{ max-width:none; padding:12px 14px 10px }
+  .viz-plot{ height:76px }
+  .viz-reads b{ font-size:17px }
+  .viz-legend{ gap:12px }
+  .ring--l{ display:none }
+  .ring--r{ width:110px; height:110px; right:-66px; top:-24px }
+  /* key 上、value 下，左緣對齊，不再右對齊折行參差 */
+  #capsList{ display:block }
+  #capsList li{ display:grid; grid-template-columns:1fr; gap:6px; padding:18px 0 18px 20px }
+  #capsList .k{ font-size:12px; letter-spacing:.08em; min-width:0; max-width:none }
+  #capsList .v{ text-align:left; font-size:15px; line-height:1.62 }
+  #capsList li::after{ left:0; top:22px; translate:none; scale:1 }
+  #capsList li::before{ inset:0 -10px }
+}
+@media (prefers-reduced-motion: reduce){
+  .viz-halo,.viz-halo::after,.ghost .gl--a,.deco,.ring{ animation:none }
+  .viz > *{ opacity:1; translate:none } .viz-plot::after{ display:none }
+  .viz.hit,.viz.hit .viz-dot,.viz-reads b.tick,.viz-plot.poke .viz-cv{ animation:none }
+  .kv.in li{ animation:none; opacity:1; transform:none }
+  .deco{ background-size:120px 3px }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Lite v2 · 黃色橫幅
+   主角時刻＝蜜蜂每十來秒跳一下，落地時腳邊的黑磚被震得依序彈起、蜂窩閃一圈。
+   ═══════════════════════════════════════════════════════════════════════ */
+/* 進場：蜂窩浮現 → 磚像骨牌從跑道下方彈起 → 大字撕開 → 蜜蜂落地 */
+.sec.banner .banner-comb{ opacity:0; transition:opacity .6s var(--e) }
+.sec.banner.in .banner-comb{ opacity:1 }
+.sec.banner .lane-tile{ opacity:0 }
+.sec.banner.in .lane-tile{ animation:tileIn .54s var(--e-spring) both; animation-delay:var(--tin,0ms) }
+@keyframes tileIn{ 0%{ opacity:0; transform:translateY(28px) scale(.9) }
+  60%{ opacity:1; transform:translateY(-6px) scale(1.03) } 100%{ opacity:1; transform:none } }
+.sec.banner .marquee-run{ clip-path:inset(0 0 100% 0); opacity:0 }
+.sec.banner.in .marquee-run{ clip-path:inset(-12% 0 -12% 0); opacity:1;
+  transition:clip-path .9s var(--e-out) .26s, opacity .4s var(--e) .26s }
+.sec.banner .banner-char{ opacity:0 }
+.sec.banner.in .banner-char{ animation:beeLand .82s cubic-bezier(.22,1.4,.36,1) .56s both }
+@keyframes beeLand{ 0%{ opacity:0; transform:translateY(70px) scale(1.06,.94) }
+  55%{ opacity:1; transform:translateY(-14px) scale(.97,1.04) }
+  76%{ transform:translateY(0) scale(1.07,.93) } 100%{ opacity:1; transform:none } }
+
+/* 圖示磚：進場快帶過衝、離開慢而優雅；圖示轉頭打招呼；左右鄰居跟著抬頭 */
+.lane-tile{ position:relative;
+  transition:transform .42s var(--e), background .3s var(--e), box-shadow .42s var(--e) }
+.lane-tile:hover{ transform:translateY(-10px) scale(1.05); transition-duration:.26s;
+  transition-timing-function:var(--e-spring);
+  box-shadow:inset 0 0 0 2px var(--a-primary), 0 18px 32px -14px rgba(0,0,0,.6) }
+.lane-tile:hover svg{ animation:tilePop .44s var(--e-spring) both }
+@keyframes tilePop{ 0%{ transform:scale(1) } 45%{ transform:scale(1.28) rotate(-11deg) } 100%{ transform:scale(1.14) rotate(-6deg) } }
+.lane-tile:hover span{ color:var(--a-primary); letter-spacing:.16em }
+.lane-tile span{ transition:color .3s var(--e), letter-spacing .3s var(--e) }
+.lane-tile:hover + .lane-tile,.lane-tile:has(+ .lane-tile:hover){ transform:translateY(-4px); transition-delay:40ms }
+.lane-tile:active{ transform:translateY(-6px) scale(.96); transition-duration:.09s }
+/* 高速時圖示縮身，慢下來再彈回 */
+.lane.rush .lane-tile svg{ transform:scale(.92); transition:transform .18s var(--e) }
+.lane-tile svg{ transition:transform .38s var(--e-spring) }
+/* 蜜蜂落地的衝擊波 */
+.lane-tile.shock{ animation:tileShock .62s var(--e-spring) }
+@keyframes tileShock{ 0%{ transform:none } 26%{ transform:translateY(-11px) scale(1.04) } 100%{ transform:none } }
+
+/* 蜜蜂：定時跳一下（腳貼地才有重量，所以不吃捲動視差） */
+.bee{ transform-origin:50% 100% }
+.bee.hop{ animation:bannerBeeHop .95s var(--e-spring) both }
+.bee.hop .bee-body{ animation:none }
+@keyframes bannerBeeHop{
+  0%{ transform:none } 12%{ transform:translateY(6px) scale(1.07,.93) }
+  40%{ transform:translateY(-40px) scale(.96,1.05) } 62%{ transform:translateY(0) scale(1.09,.91) }
+  80%{ transform:translateY(-8px) scale(.99,1.01) } 100%{ transform:none } }
+
+/* 蜂窩亮層：半徑改成可變數，並補一圈點擊漣漪 */
+.banner-comb--hot{
+  -webkit-mask-image:radial-gradient(circle var(--hr,190px) at var(--hx,-999px) var(--hy,-999px),
+                     #000 0%, rgba(0,0,0,.62) 46%, transparent 74%);
+          mask-image:radial-gradient(circle var(--hr,190px) at var(--hx,-999px) var(--hy,-999px),
+                     #000 0%, rgba(0,0,0,.62) 46%, transparent 74%) }
+.banner-comb--hot.ping{ animation:combPing .74s var(--e-out) }
+@keyframes combPing{ 0%{ opacity:1; --hr:60px } 100%{ opacity:0; --hr:460px } }
+
+/* 跑馬燈分隔：黃底上的黃閃電幾乎看不見 → 換成會轉的黑色六角節拍器 */
+.mq-node{ width:.4em; height:.44em; flex:0 0 auto; position:relative; display:inline-block;
+  background:var(--s-page); -webkit-mask:var(--hex-solid) center/100% 100% no-repeat;
+  mask:var(--hex-solid) center/100% 100% no-repeat; animation:nodeSpin 12s linear infinite }
+.mq-node::before{ content:''; position:absolute; inset:32%; background:var(--a-primary);
+  -webkit-mask:var(--hex-solid) center/100% 100% no-repeat; mask:var(--hex-solid) center/100% 100% no-repeat;
+  animation:nodePulse 2.4s var(--e) infinite }
+@keyframes nodeSpin{ to{ rotate:360deg } }
+@keyframes nodePulse{ 0%,100%{ scale:.55; opacity:.5 } 32%{ scale:1.1; opacity:1 } }
+/* 大字 hover：實心黑字變成鏤空描邊，露出底下的蜂窩 */
+@media (hover:hover){
+  .marquee--banner .marquee-run b{ -webkit-text-stroke:0 var(--t-on-accent);
+    transition:-webkit-text-fill-color .38s var(--e), -webkit-text-stroke-width .38s var(--e), letter-spacing .38s var(--e) }
+  .marquee--banner:hover .marquee-run b{ -webkit-text-fill-color:transparent; -webkit-text-stroke-width:3px }
+}
+@media (max-width:720px){ .mq-node{ width:.34em; height:.38em } }
+@media (prefers-reduced-motion: reduce){
+  .sec.banner .lane-tile,.sec.banner .banner-char,.sec.banner .banner-comb{ opacity:1; animation:none }
+  .sec.banner .marquee-run{ clip-path:none; opacity:1 }
+  .lane-tile:hover,.lane-tile:hover svg,.lane-tile.shock,.bee.hop{ transform:none; animation:none }
+  .mq-node,.mq-node::before,.banner-comb--hot.ping,.comb-run{ animation:none }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Lite v2 · 其餘區塊：套上同一套動態語言
+   節奏配置（避免九個區塊都在尖叫）：
+   首屏 ●●●● / 宣言 ●●● / 橫幅 ●●●● / 路線圖 ●● / 方案 ●●● /
+   組織圖 ●●●● / 成績單 ●●● / 聯絡 ●●
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── 路線圖：磚牆推進，hover 有塊狀回饋（原本只是等速直捲）── */
+.soon-tile{ transition:transform .42s var(--e-out), border-color .3s var(--e), box-shadow .42s var(--e) }
+@media (hover:hover){
+  .soon-tile:hover{ transform:translateX(6px) scale(1.02);
+    box-shadow:-4px 0 0 var(--a-primary), 0 18px 34px -18px rgba(0,0,0,.7) }
+}
+
+/* ── 方案：大字選項像被推上台，卡片交換帶景深 ── */
+.offer-list button{ position:relative }
+.offer-list button::before{ content:''; position:absolute; left:0; top:50%; width:4px; height:0;
+  translate:0 -50%; background:var(--a-primary); border-radius:2px;
+  transition:height .42s var(--e-spring) }
+.offer-list li.on button::before{ height:56% }
+.offer-list button:hover{ transform:translateX(6px) }
+.offer-list button{ transition:color .35s var(--e), background .35s var(--e), border-color .35s var(--e), transform .38s var(--e-out) }
+.offer-list li.on button{ transform:none }
+.offer-card{ transition:transform .5s var(--e-out), border-color .4s var(--e), box-shadow .45s var(--e) }
+@media (hover:hover){
+  .offer-card[data-reveal].in:hover{ transform:translateY(-5px);
+    border-color:rgba(255,199,0,.35); box-shadow:0 34px 70px -30px rgba(255,199,0,.35), 0 26px 50px -22px rgba(0,0,0,.75) }
+}
+.offer-card.swap .oc-bg{ transform:scale(1.04) }
+.oc-bg{ transition:opacity .45s var(--e), transform .7s var(--e-out) }
+/* 建構中角標：呼吸點外再加一圈擴散環，讓「還沒好」這件事被看見 */
+.oc-soon i{ position:relative }
+.oc-soon i::after{ content:''; position:absolute; inset:-3px; border-radius:50%;
+  border:1px solid var(--a-primary); animation:soonRing 2.4s var(--e-out) infinite }
+@keyframes soonRing{ 0%{ scale:.6; opacity:.9 } 70%,100%{ scale:2.4; opacity:0 } }
+
+/* ── 組織圖：節點六角頭像 hover 抬升，成員逐條亮起 ── */
+.org-node--member{ transition:border-color .35s var(--e), background .35s var(--e), transform .4s var(--e-out) }
+@media (hover:hover){ .org-node--member:hover{ transform:translateX(5px) } }
+.org-hex{ transition:scale .4s var(--e-spring), background .35s var(--e) }
+.org-node--head:hover .org-hex,.org-dept.on .org-node--head .org-hex{ scale:1.08 }
+.org-dept.on .org-node--member{ animation:orgMemberIn .5s var(--e-out) both }
+.org-dept.on .org-node--member:nth-child(1){ animation-delay:.05s }
+.org-dept.on .org-node--member:nth-child(2){ animation-delay:.13s }
+.org-dept.on .org-node--member:nth-child(3){ animation-delay:.21s }
+@keyframes orgMemberIn{ from{ opacity:.45; transform:translateX(-8px) } }
+.org-facts li b{ font-variant-numeric:tabular-nums }
+.org-facts li b.done{ animation:statSnap .34s cubic-bezier(.22,.61,.36,1) }
+
+/* ── 成績單：量表格子逐格點亮時帶一點過衝，數字磚有塊狀 hover ── */
+.sc-meter i{ transform-origin:50% 100% }
+.score-list.play .sc-row.on .sc-meter i.on{ animation:segPop .42s var(--e-spring) both; animation-delay:var(--d,0ms) }
+@keyframes segPop{ 0%{ transform:scaleY(.55) } 55%{ transform:scaleY(1.14) } 100%{ transform:scaleY(1) } }
+.stats li.stat-tile{ transition:transform .42s var(--e-out), border-color .3s var(--e), box-shadow .42s var(--e) }
+@media (hover:hover){
+  .stats li.stat-tile:hover{ transform:translateY(-5px);
+    box-shadow:0 26px 50px -26px rgba(0,0,0,.8) }
+  .stats li.stat-tile.is-hero:hover{ box-shadow:0 26px 54px -24px rgba(255,199,0,.5) }
+}
+.stat-tile b{ font-variant-numeric:tabular-nums }
+.stat-tile b.done{ animation:statSnap .34s cubic-bezier(.22,.61,.36,1) }
+
+/* ── 聯絡：收尾要穩，只給連結與大按鈕細膩回饋 ── */
+.cta-info a{ position:relative; transition:color .25s var(--e) }
+.cta-info a::after{ content:''; position:absolute; left:0; right:100%; bottom:-2px; height:2px;
+  background:var(--t-on-accent); transition:right .4s var(--e-out) }
+.cta-info a:hover::after{ right:0 }
+.cta .btn--big{ transition:transform .4s var(--e-spring), background .3s var(--e) }
+.cta .btn--big:active{ transform:scale(.97); transition-duration:.11s }
+.f-social a{ transition:transform .38s var(--e-spring), background .3s var(--e), color .3s var(--e) }
+.f-social a:hover{ transform:translateY(-4px) }
+
+@media (prefers-reduced-motion: reduce){
+  .oc-soon i::after,.org-dept.on .org-node--member,
+  .score-list.play .sc-row.on .sc-meter i.on,.stat-tile b.done,.org-facts li b.done{ animation:none }
+  .soon-tile:hover,.offer-list button:hover,.org-node--member:hover,
+  .stats li.stat-tile:hover,.offer-card[data-reveal].in:hover,.f-social a:hover{ transform:none }
+}
+
+/* ── 修正：英文標題折兩行時，裝飾條會被 flex 置中而懸在兩行之間像雜訊 ──
+   改成隨文字流動，永遠掛在最後一行的字尾 */
+.statement .ghost .gl--b{ display:block; padding-left:clamp(72px,12%,150px) }
+.statement .ghost .gl--b > span[data-i18n]{ display:inline }
+.statement .deco{ display:inline-flex; vertical-align:.30em; margin-left:22px }
+@media (max-width:720px){ .statement .ghost .gl--b{ padding-left:0 } }
+
+/* ── 保底：進場動畫把元素藏起來時，一定要有純 CSS 的回復路徑 ──
+   萬一 JS 拋例外沒跑到 bannerIntro()，2.4 秒後這些元素仍會自己顯示，
+   不會留下一整條空白的跑道。JS 正常時 .in 會先接手，看不到這段。 */
+.sec.banner .lane-tile{ animation:tileFailsafe .4s linear 2.4s forwards }
+.sec.banner .marquee-run{ animation:mqFailsafe .4s linear 2.4s forwards }
+.sec.banner .banner-char{ animation:charFailsafe .4s linear 2.4s forwards }
+.sec.banner.in .lane-tile,.sec.banner.in .marquee-run,.sec.banner.in .banner-char{ animation-delay:0s }
+@keyframes tileFailsafe{ to{ opacity:1 } }
+@keyframes mqFailsafe{ to{ opacity:1; clip-path:inset(-12% 0 -12% 0) } }
+@keyframes charFailsafe{ to{ opacity:1 } }
+.sec.banner.in .lane-tile{ animation:tileIn .54s var(--e-spring) both; animation-delay:var(--tin,0ms) }
+.sec.banner.in .marquee-run{ animation:none; clip-path:inset(-12% 0 -12% 0); opacity:1 }
+.sec.banner.in .banner-char{ animation:beeLand .82s cubic-bezier(.22,1.4,.36,1) .56s both }
+@media (prefers-reduced-motion: reduce){
+  .sec.banner .lane-tile,.sec.banner .marquee-run,.sec.banner .banner-char,
+  .sec.banner.in .lane-tile,.sec.banner.in .marquee-run,.sec.banner.in .banner-char{
+    animation:none; opacity:1; clip-path:none }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Lite v2 · 效能：裝飾性的無限動畫只在區塊看得到時才跑
+   ─────────────────────────────────────────────────────────────────────
+   量測（無頭 Chromium，同機對照）：全部常駐動畫開著時長幀 38.6%、p50 40ms；
+   全關 3.3%、p50 10ms。單一項目都不是元兇，是總和。
+   瀏覽器不會自動停掉離開視窗的 CSS 動畫，得自己關。
+   ═══════════════════════════════════════════════════════════════════════ */
+.sec:not(.is-vis) .glow,
+.sec:not(.is-vis) .ring,
+.sec:not(.is-vis) .viz-halo,
+.sec:not(.is-vis) .viz-dot,
+.sec:not(.is-vis) .mq-node,
+.sec:not(.is-vis) .mq-node::before,
+.sec:not(.is-vis) .banner-comb,
+.sec:not(.is-vis) .comb-run,
+.sec:not(.is-vis) .cell,
+.sec:not(.is-vis) .bee-body,
+.sec:not(.is-vis) .bee-halo,
+.sec:not(.is-vis) .hero-bee,
+.sec:not(.is-vis) .oc-soon i::after,
+.sec:not(.is-vis) .score-live em,
+.sec:not(.is-vis) .bolt-streak.in{ animation-play-state:paused }

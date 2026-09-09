@@ -85,9 +85,25 @@ const setLang = code => {
   if (code === LANG) return;
   LANG = code;
   try { localStorage.setItem(STORE_KEY, code); } catch(e){}
-  applyI18n();
-  rebuilders.forEach(fn => fn());
-  applyI18n();
+  const root = document.documentElement;
+  const swap = () => {
+    applyI18n();
+    rebuilders.forEach(fn => fn());
+    applyI18n();
+    // 換完把視窗內的大標重播一次，新語言的字才是「被拉出來」而不是硬換
+    if (!REDUCED) requestAnimationFrame(() => {
+      root.classList.remove('lang-swap');
+      $$('.rv-line.in').forEach(l => {
+        const r = l.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > innerHeight) return;
+        l.classList.remove('in'); void l.offsetWidth;
+        setTimeout(() => l.classList.add('in'), 40);
+      });
+    });
+  };
+  if (REDUCED) return swap();
+  root.classList.add('lang-swap');
+  setTimeout(swap, 170);
 };
 
 function langSwitcher(){
@@ -114,12 +130,20 @@ function langSwitcher(){
 /* ═════ 1 · 導覽列（隱藏／展開／scrollspy）═════ */
 function nav(){
   const h = $('#header');
-  let last = 0;
+  let last = 0, dir = 0, acc = 0, hidden = false, backT = 0;
+  /* 原本用 `y > last + 2` 判斷方向，但速度衰減用的 60ms tick 會在 y===last 時觸發，
+     條件立刻變假 → 標頭反覆收起又彈回。改成累積位移的方向狀態機，加遲滯。 */
   onFrame.push(y => {
-    h.classList.toggle('is-hidden',
-      y > 240 && y > last + 2 && !document.body.classList.contains('nav-open'));
-    h.classList.toggle('is-scrolled', y > 40);      // 離開頂端後玻璃收緊
-    if (Math.abs(y - last) > 2) last = y;
+    h.classList.toggle('is-scrolled', y > 40);
+    const d = y - last; last = y;
+    if (d === 0 || document.body.classList.contains('nav-open')) return;
+    if (Math.sign(d) !== dir){ dir = Math.sign(d); acc = 0; }
+    acc += Math.abs(d);
+    if (dir > 0 && acc > 48 && y > 240 && !hidden){ hidden = true; h.classList.add('is-hidden'); }
+    else if (((dir < 0 && acc > 24) || y <= 120) && hidden){
+      hidden = false; h.classList.remove('is-hidden'); h.classList.add('is-back');
+      clearTimeout(backT); backT = setTimeout(() => h.classList.remove('is-back'), 700);
+    }
   });
 
   $('.burger').addEventListener('click', () => document.body.classList.toggle('nav-open'));
@@ -166,16 +190,37 @@ function nav(){
   const links = $$('.nav-links a[href^="#"]');
   const sections = $$('main > section[id]');
   const parents  = $$('.nav-links .has-menu > button');
+  /* 單一滑動指示器：目前區塊由一顆六角形滑過去標記，取代每個連結各自的底線硬跳 */
+  const list = $('.nav-links'); let ind = null;
+  if (list){ ind = document.createElement('i'); ind.className = 'nav-ind'; list.appendChild(ind); }
+  const moveInd = el => {
+    if (!ind) return;
+    const top = el && (el.closest('.has-menu') || el);
+    if (!top || !list.contains(top)){ ind.style.opacity = '0'; return; }
+    const r = top.getBoundingClientRect(), lr = list.getBoundingClientRect();
+    ind.style.opacity = '1';
+    ind.style.transform = `translateX(${r.left - lr.left + r.width / 2 - 5}px)`;
+  };
+  let curEl = null;
+  /* 每幀讀 7 個區塊的 rect 只是為了知道位置；位置只有版面變動時才會變 → 改成快取 */
+  let tops = [];
+  const measureTops = () => { tops = sections.map(s => s.getBoundingClientRect().top + scrollY); };
+  addEventListener('resize', measureTops, { passive:true });
+  addEventListener('load', measureTops, { passive:true });
+  requestAnimationFrame(measureTops);
+  setTimeout(measureTops, 1400);                 // 圖片載入後版面高度才穩定
   if (sections.length) onFrame.push(y => {
     const mid = y + innerHeight * .35;
     let sec = null;
-    for (const s of sections){ if (s.getBoundingClientRect().top + y <= mid) sec = s; }
+    for (let i = 0; i < sections.length; i++){ if (tops[i] <= mid) sec = sections[i]; }
     const id = sec ? '#' + sec.id : null;
     const hit = id ? links.find(a => a.getAttribute('href') === id) : null;
     links.forEach(a => a.classList.toggle('current', a === hit));
     // 子選單裡的連結命中時，點亮它的父按鈕（Games / Discover）
     parents.forEach(b => b.classList.toggle('current', !!hit && b.parentElement.contains(hit)));
+    if (hit !== curEl){ curEl = hit; moveInd(hit); }
   });
+  addEventListener('resize', () => moveInd(curEl), { passive:true });
 }
 
 /* ═════ 2 · 進場：區塊淡入 + 標題逐行遮罩揭示 ═════ */
@@ -184,50 +229,135 @@ function reveals(){
   const LINE_SEL = '.ghost .gl, .split-title span, .split-title em, .cta-title span, .hero-title span';
   $$(LINE_SEL).forEach(el => el.classList.add('rv-line'));
 
-  const io = new IntersectionObserver(es => {
-    es.forEach(e => {
-      if (!e.isIntersecting) return;
-      io.unobserve(e.target);
-      const el = e.target;
-      // 同一個標題內的行，依序錯開
-      const lines = $$('.rv-line', el);
-      if (lines.length){
-        lines.forEach((l, i) => setTimeout(() => l.classList.add('in'), REDUCED ? 0 : i * 130));
-        setTimeout(() => el.classList.add('in'), 0);
-      } else {
-        el.classList.add('in');
-      }
-    });
-  }, { threshold:.01, rootMargin:'0px 0px -40px 0px' });
+  /* 依區塊給序號 → CSS 用 --rd 錯開，區塊內才有節奏而不是同一拍全亮 */
+  $$('main > section, .site-footer').forEach(sec =>
+    $$('[data-reveal]', sec).forEach((el, i) => el.style.setProperty('--rd', Math.min(i, 7) * 70 + 'ms')));
 
-  $$('[data-reveal]').forEach(el => io.observe(el));
+  /* 捲得快就把揭示時間縮短，捲得慢就慢慢揭。
+     ⚠ 這個值一定要寫在「即將進場的那一個元素」上。
+     早期版本寫在 documentElement 當繼承變數，結果每改一次就讓整份文件
+     （含首屏 418 個六角格）重算樣式：實測慢幀 42%、p50 25ms；
+     改成逐元素之後回到 0% / 8ms。 */
+  const play = el => {
+    if (el.classList.contains('in')) return;
+    if (!REDUCED){
+      const k = clamp(1 - Math.abs(velocity) / 90, .45, 1);
+      el.style.transitionDuration = k < .99 ? (0.8 * k).toFixed(2) + 's' : '';
+    }
+    const lines = $$('.rv-line', el);
+    lines.forEach((l, i) => setTimeout(() => l.classList.add('in'), REDUCED ? 0 : i * 110));
+    el.classList.add('in');
+  };
+  const reset = el => { el.classList.remove('in'); $$('.rv-line', el).forEach(l => l.classList.remove('in')); };
 
-  // 沒有被 data-reveal 包住的獨立行（例如 hero 標題在 lockup 內）
-  const lineIO = new IntersectionObserver(es => es.forEach(e => {
-    if (!e.isIntersecting) return;
-    lineIO.unobserve(e.target);
-    e.target.classList.add('in');
+  /* #hero 的元素由 playHero() 全權掌控時序，不能讓這裡搶先點亮 */
+  const owned = el => !REDUCED && el.closest('#hero');
+  const pending = new Set();
+
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    const el = e.target;
+    if (e.isIntersecting){
+      // 點導覽跳區時會飛越好幾個區塊，半路點亮等於沒人看到 → 記下來等停穩再播
+      if (!REDUCED && Math.abs(velocity) > 60){ pending.add(el); return; }
+      pending.delete(el); play(el);
+    } else if (e.boundingClientRect.top > innerHeight){
+      // 只在「從視窗下方離開」時重置：往回捲會重播，往下讀不會閃
+      pending.delete(el); reset(el);
+    }
   }), { threshold:.01, rootMargin:'0px 0px -40px 0px' });
-  $$('.rv-line').forEach(l => { if (!l.closest('[data-reveal]')) lineIO.observe(l); });
+
+  $$('[data-reveal]').forEach(el => { if (owned(el)) return; io.observe(el); });
+
+  // 沒有被 data-reveal 包住的獨立行
+  const lineIO = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) e.target.classList.add('in');
+    else if (e.boundingClientRect.top > innerHeight) e.target.classList.remove('in');
+  }), { threshold:.01, rootMargin:'0px 0px -40px 0px' });
+  $$('.rv-line').forEach(l => { if (!l.closest('[data-reveal]') && !owned(l)) lineIO.observe(l); });
+
+  // 停穩後補播飛越途中略過的區塊。
+  // 條件刻意不要求「還在視窗內」：快速捲過去的區塊如果留在 opacity:0，
+  // 使用者往回捲之前那一段就是空的。只要不再位於視窗下方就補播。
+  onFrame.push(() => {
+    if (!pending.size || Math.abs(velocity) > 8) return;
+    [...pending].forEach(el => {
+      if (el.getBoundingClientRect().top < innerHeight - 40){ pending.delete(el); play(el); }
+    });
+  });
+
+  if (REDUCED) $$('[data-reveal], .rv-line').forEach(el => el.classList.add('in'));
 }
 
 /* ═════ 3 · HERO 進場編排（依序而非同時）═════ */
 /* 首屏進場：可重複播放（定時重播用），卡片滑入只在第一次 */
+/* 首屏時序：大標先落地，閃電把品牌板「劈」出來，副標與數字最後充能。
+   ≤1180px 蜜蜂在版面最上方，所以它要先降落再由大標接手。 */
 const HERO_SEQ = [
-  ['.hero .eyebrow',      0], ['.hero-title .l1',   140], ['.hero-title .l2',   260],
-  ['.brand-plate',      420], ['.bolt-streak',      520], ['.hero-sub',         640],
-  ['.hero-stats',       740]
+  ['.hero .eyebrow',      0], ['.hero-title .l1',   120], ['.hero-title .l2',   300],
+  ['.bolt-streak',      520], ['.brand-plate',      640], ['.hero-sub',         820],
+  ['.hero-stats',       920], ['.hero-lockup',        0]
 ];
-function playHero(){
-  HERO_SEQ.forEach(([sel]) => { const el = $(sel); if (el) el.classList.remove('in'); });
-  void document.body.offsetWidth;                          // 讓移除 .in 先生效，動畫才會重跑
-  HERO_SEQ.forEach(([sel, d]) => {
-    const el = $(sel); if (!el) return;
-    setTimeout(() => el.classList.add('in'), 260 + d);
+const HERO_SEQ_M = [
+  ['.hero-bee',           0], ['.hero .eyebrow',   640], ['.hero-title .l1',   720],
+  ['.hero-title .l2',   880], ['.bolt-streak',    1060], ['.brand-plate',     1200],
+  ['.hero-sub',        1400], ['.hero-stats',     1500], ['.hero-lockup',      640]
+];
+const heroSeq = () => (innerWidth <= 1180 ? HERO_SEQ_M : HERO_SEQ);
+let heroTimers = [];
+/* replay=true 走「果斷退場 → 歸零 → 重新進場」，避免退到一半被進場打斷變成抖動 */
+function playHero(replay){
+  const host = $('#hero'); if (!host) return;
+  heroTimers.forEach(clearTimeout); heroTimers = [];
+  const seq = heroSeq();
+  const all = [...new Set(seq.map(([sel]) => sel))].map(sel => $(sel)).filter(Boolean);
+  const bee = $('.hero-bee');
+  if (bee && !seq.some(([sel]) => sel === '.hero-bee')) all.push(bee);
+
+  const start = () => {
+    host.classList.add('hero-reset');                      // 關掉過渡，讓歸零是瞬間的
+    all.forEach(el => { el.classList.remove('in', 'is-out'); $$('.rv-line', el).forEach(l => l.classList.remove('in')); });
+    if (bee) bee.classList.remove('in');
+    void host.offsetWidth;
+    requestAnimationFrame(() => {
+      host.classList.remove('hero-reset');
+      if (bee && !seq.some(([sel]) => sel === '.hero-bee'))
+        heroTimers.push(setTimeout(() => bee.classList.add('in'), 300));
+      seq.forEach(([sel, d]) => {
+        const el = $(sel); if (!el) return;
+        heroTimers.push(setTimeout(() => {
+          el.classList.add('in');
+          $$('.rv-line', el).forEach((l, i) => heroTimers.push(setTimeout(() => l.classList.add('in'), i * 120)));
+        }, 200 + d));
+      });
+    });
+  };
+
+  if (!replay) return start();
+  // 退場：由下往上反序收起，短而果斷（ease-in），大標不藏起來免得讀者被打斷
+  const outs = ['.hero-stats', '.hero-sub', '.brand-plate', '.bolt-streak'];
+  outs.forEach((sel, i) => { const el = $(sel); if (el) heroTimers.push(setTimeout(() => el.classList.add('is-out'), i * 45)); });
+  heroTimers.push(setTimeout(start, 300));
+}
+/* 閃電掃完的那一刻＝首屏的重拍：尖端噴火花、蜂窩由落點向外亮一圈、大標被震一下 */
+function boltStrike(){
+  dispose('bolt');
+  const bolt = $('.bolt-streak'), host = $('#hero');
+  if (!bolt || !host || REDUCED) return;
+  listen('bolt', bolt, 'transitionend', e => {
+    if (e.propertyName !== 'clip-path' || !bolt.classList.contains('in')) return;
+    const b = bolt.getBoundingClientRect(), h = host.getBoundingClientRect();
+    const x = b.right - h.left - 18, y = b.top - h.top + b.height * .5;
+    host.dispatchEvent(new CustomEvent('bee:ripple', { detail:{ x, y, r:420 } }));
+    const lk = $('.hero-lockup');
+    if (lk){ lk.classList.add('hit'); setTimeout(() => lk.classList.remove('hit'), 460); }
   });
 }
+
 function heroChoreo(){
-  if (REDUCED) return;
+  if (REDUCED){
+    $$('#hero [data-reveal], #hero .rv-line, .hero-bee, .brand-plate').forEach(el => el.classList.add('in'));
+    return;
+  }
   playHero();
   // 卡片依序滑入（只在第一次載入）
   setTimeout(() => {
@@ -315,6 +445,7 @@ function hero(){
 
 /* ═════ 6 · 橫幅雙軌跑道 ═════ */
 function lanes(){
+  dispose('lane');
   const build = (el, list) => {
     if (!el) return;
     const html = list.map(sv =>
@@ -335,12 +466,21 @@ function lanes(){
   const a = build($('#laneA'), LANE_A);
   const b = build($('#laneB'), LANE_B);
   if (REDUCED || !a || !b) return;
-  // 捲動速度帶動跑道速度
-  let rate = 1;
-  onFrame.push((y, v) => {
-    // 上限收到 1.35 倍且大幅平滑：只是很淡的呼應，不會讓人覺得在飄
-    rate = lerp(rate, clamp(1 + Math.abs(v) / 90, 1, 1.35), .08);
+
+  /* 捲動回饋改用二階彈簧：猛捲時傳送帶像被踩油門，放開後煞車過頭再回穩。
+     原本純 lerp、上限 1.35，實測只到 1.08，肉眼等於沒反應。 */
+  let rate = 1, rv = 0, hover = 1;
+  const laneEls = $$('.lane');
+  laneEls.forEach(l => {
+    listen('lane', l, 'pointerenter', () => { hover = .18; });   // 靠近就慢下來讓人看清楚
+    listen('lane', l, 'pointerleave', () => { hover = 1; });
+  });
+  frame('lane', (y, v) => {
+    const target = (1 + clamp(Math.abs(v) / 38, 0, 1.8)) * hover;
+    rv += (target - rate) * .16; rv *= .74; rate = clamp(rate + rv, .12, 3);
     a.playbackRate = rate; b.playbackRate = rate;
+    const rush = rate > 1.9;
+    laneEls.forEach(l => l.classList.toggle('rush', rush));
   });
 }
 
@@ -671,8 +811,19 @@ function offer(){
 /* ═════ 10 · 清單內容 ═════ */
 function lists(){
   const caps = $('#capsList');
-  if (caps) caps.innerHTML = CAPS.map(([k, v]) =>
-    `<li><span class="k">${t(k)}</span><span class="v">${t(v)}</span></li>`).join('');
+  if (caps){
+    caps.innerHTML = CAPS.map(([k, v], i) =>
+      `<li style="--i:${i}"><span class="k">${t(k)}</span><span class="v">${t(v)}</span></li>`).join('');
+    // 觸控裝置沒有 hover，桌機閒置時也該有節奏 → 每 14 秒逐列點名一次
+    dispose('kvTour');
+    if (!REDUCED) every('kvTour', 14000, () => {
+      const r = caps.getBoundingClientRect();
+      if (document.hidden || r.bottom < 0 || r.top > innerHeight) return;
+      $$('li', caps).forEach((li, i) => setTimeout(() => {
+        li.classList.add('is-on'); setTimeout(() => li.classList.remove('is-on'), 640);
+      }, i * 140));
+    });
+  }
 
 }
 
@@ -976,27 +1127,38 @@ function lineupMeta(){
 
 /* ═════ 11 · 數字滾動 ═════ */
 /* 數字滾動：進入畫面就跑，離開再進來會再跑；另外每 14 秒定時重播（連同首屏進場） */
-const countUp = el => {
+const countUp = (el, delay) => {
   const to = +el.dataset.count, suf = el.dataset.suffix || '';
   if (REDUCED){ el.textContent = to.toLocaleString() + suf; return; }
-  const t0 = performance.now(), D = 1600, token = (el.__ct = (el.__ct || 0) + 1);
-  const step = t => {
-    if (el.__ct !== token) return;                 // 被新一輪取代就停
-    const p = clamp((t - t0) / D, 0, 1);
-    const e2 = 1 - Math.pow(1 - p, 4);             // 更緩的收尾
-    el.textContent = Math.round(to * e2).toLocaleString() + suf;
-    if (p < 1) requestAnimationFrame(step);
+  const token = (el.__ct = (el.__ct || 0) + 1);
+  const run = () => {
+    if (el.__ct !== token) return;
+    const t0 = performance.now(), D = +el.dataset.dur || 1500;
+    const step = t => {
+      if (el.__ct !== token) return;               // 被新一輪取代就停
+      const p = clamp((t - t0) / D, 0, 1);
+      const e2 = 1 - Math.pow(1 - p, 4);           // 更緩的收尾
+      el.textContent = Math.round(to * e2).toLocaleString() + suf;
+      if (p < 1) requestAnimationFrame(step);
+      else { el.classList.add('done'); setTimeout(() => el.classList.remove('done'), 360); }
+    };
+    requestAnimationFrame(step);
   };
-  requestAnimationFrame(step);
+  delay ? setTimeout(run, delay) : run();
 };
 function counters(){
   dispose('count');
   const inview = new Set();
   const io = new IntersectionObserver(es => es.forEach(e => {
-    if (e.isIntersecting){ if (!inview.has(e.target)){ inview.add(e.target); countUp(e.target); } }
+    if (e.isIntersecting){ if (!inview.has(e.target)){ inview.add(e.target); countUp(e.target, +e.target.dataset.i * 140); } }
     else inview.delete(e.target);
   }), { threshold:.4 });
-  $$('[data-count]').forEach(el => io.observe(el));
+  // 同一組數字依序起跑，才有「一個一個叮住」的節奏，而不是三個一起滾
+  $$('[data-count]').forEach(el => {
+    const sibs = $$('[data-count]', el.closest('.hero-stats, .stats, .org-facts, .score-list') || document.body);
+    el.dataset.i = Math.max(0, sibs.indexOf(el));
+    io.observe(el);
+  });
   onDispose('count', () => io.disconnect());
 
   /* 定時重播：每 14 秒把看得見的數字重滾一次；首屏在畫面內時連進場動畫一起重播 */
@@ -1007,7 +1169,10 @@ function counters(){
     if (document.hidden) return;
     const heroOn = hero && hero.getBoundingClientRect().bottom > innerHeight * .35 && hero.getBoundingClientRect().top < innerHeight * .5;
     if (heroOn) playHero();                        // 含 .hero-stats 的揭示；數字由下面重滾
-    inview.forEach(el => countUp(el));
+    inview.forEach(el => countUp(el, +el.dataset.i * 140));
+    // 角標掃光：每輪重播時卡片依序閃一道（不是整片閃爍，只有一道光）
+    $$('.hcard').forEach((c, i) => { setTimeout(() => { c.classList.add('tick');
+      setTimeout(() => c.classList.remove('tick'), 900); }, i * 70); });
   });
 }
 
@@ -1015,13 +1180,94 @@ function counters(){
 function parallax(){
   const els = $$('[data-parallax]');
   if (!els.length || REDUCED) return;
+  /* 讀 rect 與寫 style 必須分成兩批：交錯進行會讓每個元素各觸發一次強制回流。 */
+  const jobs = [];
   onFrame.push(() => {
-    els.forEach(el => {
+    jobs.length = 0;
+    for (const el of els){                                  // ── 這一輪只讀
       const r = el.getBoundingClientRect();
-      if (r.bottom < 0 || r.top > innerHeight) return;
-      const p = (innerHeight - r.top) / (innerHeight + r.height) - .5;
-      el.style.transform = `translate3d(0,${p * +el.dataset.parallax}px,0)`;
+      if (r.bottom < 0 || r.top > innerHeight) continue;
+      const want = ((innerHeight - r.top) / (innerHeight + r.height) - .5) * +el.dataset.parallax;
+      // 拖尾：位移不是硬跟著捲動，而是追上去，背景才有重量
+      el._p = el._p == null ? want : lerp(el._p, want, .14);
+      const v2 = Math.round(el._p * 4) / 4;                 // 0.25px 以內的變化肉眼看不出，不值得重算樣式
+      if (el._w !== v2){ el._w = v2; jobs.push(el); }
+    }
+    for (const el of jobs) el.style.translate = `0 ${el._w}px`;   // ── 這一輪才寫
+  });
+}
+
+/* ═════ 11d · 區塊可見性閘門 + 定時脈動 ═════
+   裝飾動畫離開視窗就暫停（瀏覽器不會自己停）；
+   每 14 秒讓看得到的區塊「自檢」一次：大標掃一道光、裝飾條重畫。 */
+function sectionPulse(){
+  dispose('pulse');
+  const secs = $$('main > section');
+  if (!secs.length) return;
+  const io = new IntersectionObserver(es => es.forEach(e =>
+    e.target.classList.toggle('is-vis', e.isIntersecting)), { rootMargin:'140px 0px' });
+  secs.forEach(sec => io.observe(sec));
+  onDispose('pulse', () => io.disconnect());
+  if (REDUCED) return;
+  every('pulse', 14000, () => {
+    if (document.hidden) return;
+    secs.forEach(sec => {
+      if (!sec.classList.contains('is-vis')) return;
+      sec.classList.remove('pulse'); void sec.offsetWidth; sec.classList.add('pulse');
+      setTimeout(() => sec.classList.remove('pulse'), 2600);
     });
+  });
+}
+
+/* ═════ 12b · 首屏吉祥物：看向游標、點擊出拳、拳頭震出蜂窩漣漪 ═════
+   原本 .hero-lockup 是滿寬的 block，把蜜蜂中段整個蓋住 → hover 永遠打不到，
+   cursor:pointer 卻沒有任何 listener，是假的可點提示。 */
+function heroBee(){
+  dispose('bee');
+  const bee = $('.hero-bee'), host = $('#hero');
+  if (!bee || !host) return;
+
+  const ripple = (x, y, r) => host.dispatchEvent(new CustomEvent('bee:ripple', { detail:{ x, y, r } }));
+  const fistPoint = () => {
+    const b = bee.getBoundingClientRect(), h = host.getBoundingClientRect();
+    return { x: b.left - h.left + b.width * .74, y: b.top - h.top + b.height * .52 };
+  };
+  const punch = () => {
+    if (REDUCED) return;
+    bee.classList.remove('punch'); void bee.offsetWidth; bee.classList.add('punch');
+    setTimeout(() => { const p = fistPoint(); ripple(p.x, p.y, 400);
+      const st = $('.hero-stats'); if (st){ st.classList.add('shake'); setTimeout(() => st.classList.remove('shake'), 340); } }, 210);
+    setTimeout(() => bee.classList.remove('punch'), 620);
+  };
+  listen('bee', bee, 'click', punch);
+  listen('bee', bee, 'keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); punch(); } });
+
+  /* 看向游標：只在桌機，位移量很小，重點是「他注意到你了」 */
+  if (!REDUCED && !COARSE){
+    let lean = 0, target = 0;
+    listen('bee', host, 'pointermove', e => {
+      const b = bee.getBoundingClientRect();
+      if (!b.width) { target = 0; return; }
+      const dx = e.clientX - (b.left + b.width / 2);
+      target = clamp(dx / 46, -6.5, 6.5);
+    });
+    listen('bee', host, 'pointerleave', () => { target = 0; });
+    frame('bee', () => {
+      if (Math.abs(lean - target) < .02) return;
+      lean = lerp(lean, target, .09);
+      bee.style.rotate = lean.toFixed(2) + 'deg';
+    });
+  }
+
+  /* 閒置時每 11 秒跳一下，並在落地那刻震出漣漪（Owner：動畫要定時重播）*/
+  if (!REDUCED) every('bee', 11000, () => {
+    if (document.hidden) return;
+    const r = host.getBoundingClientRect();
+    if (r.bottom < innerHeight * .3) return;
+    bee.classList.remove('hop'); void bee.offsetWidth; bee.classList.add('hop');
+    setTimeout(() => { const b = bee.getBoundingClientRect(), h = host.getBoundingClientRect();
+      ripple(b.left - h.left + b.width / 2, b.top - h.top + b.height * .96, 340); }, 560);
+    setTimeout(() => bee.classList.remove('hop'), 960);
   });
 }
 
@@ -1034,10 +1280,17 @@ function heroParallax(){
   onFrame.push(y => {
     if (y > 1100) return;
     const p = y / 1000;
-    title.style.transform = `translate3d(0,${p * -70}px,0)`;
-    if (wm)    wm.style.transform    = `translate3d(0,${p * 40}px,0)`;
-    if (sub)   sub.style.transform   = `translate3d(0,${p * -34}px,0)`;
-    if (stats) stats.style.transform = `translate3d(0,${p * -50}px,0)`;
+    if (Math.abs(y - (heroParallax.last || 0)) < 1) return;
+    heroParallax.last = y;
+    const bee = $('.hero-bee'), cards = $('.hero-cards'), bolt = $('.bolt-streak');
+    title.style.translate = `0 ${p * -70}px`;
+    if (wm)    wm.style.translate    = `0 ${p * 40}px`;
+    if (sub)   sub.style.translate   = `0 ${p * -34}px`;
+    if (stats) stats.style.translate = `0 ${p * -50}px`;
+    if (bolt)  bolt.style.translate  = `0 ${p * -58}px`;
+    // 前景要比大標更快才有深度；手機蜜蜂在文件流內，不能推
+    if (bee && innerWidth > 1180) bee.style.translate = `0 ${p * -96}px`;
+    if (cards) cards.style.translate = `0 ${p * 22}px`;
   });
 }
 
@@ -1091,13 +1344,34 @@ function chrome(){
   top.type = 'button';
   top.setAttribute('aria-label', '回到頁面頂端');
   document.body.appendChild(top);
-  top.addEventListener('click', () =>
-    scrollTo({ top:0, behavior: REDUCED ? 'auto' : 'smooth' }));
+  top.addEventListener('click', () => {
+    top.classList.add('fire');
+    setTimeout(() => top.classList.remove('fire'), 420);
+    setTimeout(() => scrollTo({ top:0, behavior: REDUCED ? 'auto' : 'smooth' }), REDUCED ? 0 : 120);
+  });
 
-  onFrame.push(y => {
+  const yellow = $$('.sec.banner, .sec.cta');            // 一次查完，別每幀重查
+  let lastP = -1, lastVg = -1, cy = innerHeight - 54;
+  const measure = () => { const r = top.getBoundingClientRect(); cy = r.top + r.height / 2; };
+  addEventListener('resize', measure, { passive:true });
+  requestAnimationFrame(measure);
+  onFrame.push((y, v) => {
     const max = document.documentElement.scrollHeight - innerHeight;
-    bar.style.transform = `scaleX(${max > 0 ? clamp(y / max, 0, 1) : 0})`;
+    const p = max > 0 ? clamp(y / max, 0, 1) : 0;
+    if (Math.abs(p - lastP) > .0015){
+      lastP = p;
+      bar.style.transform = `scaleX(${p})`;
+      top.style.setProperty('--sp', p.toFixed(3));         // 閱讀進度環
+    }
+    const vg = Math.round(clamp(Math.abs(v) / 60, 0, 1) * 5) / 5;
+    if (vg !== lastVg){ lastVg = vg; bar.style.setProperty('--vg', String(vg)); }
     top.classList.toggle('on', y > innerHeight * 1.2);
+    // 黃底上的黃鈕等於隱形 → 壓到黃色區塊時反相（每 6 幀判一次就夠，不必每幀讀版面）
+    if ((chrome.n = (chrome.n || 0) + 1) % 6 === 0){
+      top.classList.toggle('inv', yellow.some(sec => {
+        const b = sec.getBoundingClientRect(); return b.top < cy && b.bottom > cy;
+      }));
+    }
   });
 }
 
@@ -1190,9 +1464,9 @@ function cellGrid(){
   ptLayer.className = 'cell-particles';
   grid.appendChild(ptLayer);
   let alive = 0, lastEmit = 0;
-  const emit = (x, y) => {
+  const emit = (x, y, n0) => {
     if (alive >= 34) return;                       // 同時存活上限，避免堆積
-    const n = 1 + (Math.random() < .45 ? 1 : 0);
+    const n = n0 || (1 + (Math.random() < .45 ? 1 : 0));
     for (let i = 0; i < n; i++){
       const pt = document.createElement('i');
       pt.className = 'pt';
@@ -1261,6 +1535,30 @@ function cellGrid(){
   build();
   let rt = 0;
   addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(build, 220); });
+  /* 對外的因果 API：閃電劈下、蜜蜂出拳、定時重播都會在蜂窩上留下一圈漣漪。
+     以事件傳遞，呼叫端不必持有 cellGrid 的內部狀態。 */
+  const ripple = (x, y, R) => {
+    if (REDUCED) return;
+    const r0 = R || 460;
+    let n = 0;
+    for (const c of cells){
+      const d = Math.hypot(c.x - x, c.y - y);
+      if (d > r0) continue;
+      if (++n > 120) break;                         // 上限：同時亮的格數＝每幀的重繪數
+      setTimeout(() => {
+        c.p = (1 - d / r0) * .95;
+        c.el.style.setProperty('--p', c.p.toFixed(3));
+        c.hot = true; c.el.classList.add('hot', 'ping');
+        setTimeout(() => {
+          c.p = 0; c.hot = false;
+          c.el.style.setProperty('--p', '0'); c.el.classList.remove('hot', 'ping');
+        }, 520);
+      }, d * .85);
+    }
+    emit(x, y, 6);
+  };
+  listen('cell', host, 'bee:ripple', e => ripple(e.detail.x, e.detail.y, e.detail.r));
+
 }
 
 /* ═════ 11 · 區塊 01 的遙測面板 ═════
@@ -1391,10 +1689,15 @@ function aboutViz(){
     ctx.globalAlpha = 1;
   };
 
-  const setRead = (el, txt) => {
-    if (!el || el.textContent === txt) return;
-    el.textContent = txt; el.classList.remove('tick'); void el.offsetWidth; el.classList.add('tick');
+  /* 原本三個讀數每 160ms 都重播一次 .tick，數字持續閃黃、上下抖，眼睛停不住，
+     真正的「命中」也淹沒在雜訊裡。改成：只有命中才閃，數值走平滑包絡。 */
+  const setText = (el, txt, p) => {
+    if (!el) return;
+    if (el.textContent !== txt) el.textContent = txt;
+    if (p != null) el.parentElement.style.setProperty('--p', clamp(p, 0, 1).toFixed(3));
   };
+  const flash = el => { if (!el) return; el.classList.remove('tick'); void el.offsetWidth; el.classList.add('tick'); };
+  let volEnv = 0, emoShown = 0;
   const step = (now, fixedDt) => {
     let dt = fixedDt != null ? fixedDt : (last ? (now - last) / 1000 : 1 / 60); last = now;
     dt = Math.min(dt, 0.05);
@@ -1407,11 +1710,17 @@ function aboutViz(){
     while (trB.length && trB[0].t < cut) trB.shift();
     while (hits.length && hits[0].t < cut) hits.shift();
     emoPeak = Math.max(Math.abs(B.x), emoPeak * 0.985);   // 情緒峰值：慢慢回落的包絡
-    if (fixedDt == null && (clock - (step.lastRead || 0)) > 160){
+    // 波動＝彈跳球速度的平滑包絡（原本直接寫瞬時高度，所以在 5%↔89% 之間亂跳）
+    volEnv = lerp(volEnv, clamp(Math.abs(A.v) / 2.6, 0, 1), 1 - Math.exp(-dt / 0.7));
+    if (fixedDt == null && (clock - (step.lastRead || 0)) > 240){
       step.lastRead = clock;
-      setRead(rd.hit, String(hitCount));
-      setRead(rd.emo, Math.round(Math.min(1, emoPeak) * 100) + '%');
-      setRead(rd.vol, Math.round(A.y * 100) + '%');
+      const emo = Math.min(1, emoPeak);
+      setText(rd.hit, String(hitCount % 100).padStart(2, '0'), Math.min(1, (hitCount % 100) / 24));
+      // 情緒峰值只在真的刷新高點時才跳動與強調
+      if (Math.round(emo * 100) > emoShown + 2){ emoShown = Math.round(emo * 100); flash(rd.emo); }
+      else emoShown = Math.max(0, emoShown - 1);
+      setText(rd.emo, emoShown + '%', emoShown / 100);
+      setText(rd.vol, Math.round(volEnv * 100) + '%', volEnv);
     }
 
     // 交叉偵測：兩條線頭的高低關係翻轉的那一幀就是交叉瞬間
@@ -1419,9 +1728,17 @@ function aboutViz(){
     if (prevSign && sign && sign !== prevSign && clock - lastCross > 420){
       lastCross = clock;
       const y = (a + b) / 2;
-      burst(headX(), y, Math.abs(y - H / 2) < H * 0.12);   // 在正中央交會＝「完美交叉」，放大招
+      const big = Math.abs(y - H / 2) < H * 0.12;
+      burst(headX(), y, big);                            // 在正中央交會＝「完美交叉」，放大招
       hits.push({ t: clock, y }); hitCount++;
       cv.dataset.cross = String(hitCount);
+      if (!REDUCED){                                     // 讓命中外溢到面板與標題，不再只留在畫布裡
+        viz.classList.remove('hit', 'hit--big'); void viz.offsetWidth;
+        viz.classList.add('hit'); if (big) viz.classList.add('hit--big');
+        setTimeout(() => viz.classList.remove('hit', 'hit--big'), 760);
+        flash(rd.hit);
+        if (big){ const sec = $('#about'); if (sec){ sec.classList.add('flash'); setTimeout(() => sec.classList.remove('flash'), 650); } }
+      }
     }
     prevSign = sign;
 
@@ -1437,7 +1754,11 @@ function aboutViz(){
     for (let t = 0; t < keep(); t += 1 / 60) step(0, 1 / 60);
     sparks.length = 0; rings.length = 0; last = 0;
   };
-  const prime = () => { if (!primed && W > 0){ primed = true; preroll(); if (REDUCED) draw(clock); } };
+  const prime = () => { if (!primed && W > 0){ primed = true; preroll();
+    if (REDUCED){ draw(clock);
+      setText(rd.hit, String(hitCount % 100).padStart(2, '0'), .5);
+      setText(rd.emo, Math.round(Math.min(1, emoPeak) * 100) + '%', Math.min(1, emoPeak));
+      setText(rd.vol, Math.round(volEnv * 100) + '%', volEnv); } } };
   const loop = now => {
     raf = 0;
     if (!visible || document.hidden) { last = 0; return; }
@@ -1447,15 +1768,126 @@ function aboutViz(){
   const kick = () => { if (!raf && !REDUCED) raf = requestAnimationFrame(loop); };
   document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
 
+  /* 這個彈簧＋彈跳球是全站最適合「戳一下」的東西，原本卻連一個 listener 都沒有 */
+  const poke = dir => {
+    if (REDUCED) return;
+    A.v = Math.abs(A.v) * .6 + 2.4;                 // 球高彈
+    B.v += 3.2 * (dir || 1);                        // 彈簧猛張
+    burst(headX(), yB(), true);
+    plot.classList.remove('poke'); void plot.offsetWidth; plot.classList.add('poke');
+    setTimeout(() => plot.classList.remove('poke'), 460);
+    kick();
+  };
+  listen('viz', plot, 'pointerdown', e => {
+    const r = plot.getBoundingClientRect();
+    poke(e.clientX < r.left + r.width / 2 ? -1 : 1);
+  });
+  if (!REDUCED && !COARSE){
+    // hover 時模擬加速、面板跟著游標微傾（transform 由 CSS 讀 --rx/--ry）
+    listen('viz', viz, 'pointermove', e => {
+      const r = viz.getBoundingClientRect();
+      viz.style.setProperty('--rx', ((e.clientX - r.left) / r.width - .5).toFixed(3));
+      viz.style.setProperty('--ry', ((e.clientY - r.top) / r.height - .5).toFixed(3));
+    });
+    listen('viz', viz, 'pointerleave', () => { viz.style.removeProperty('--rx'); viz.style.removeProperty('--ry'); });
+  }
+  every('viz', 8000, () => { if (!document.hidden && visible) poke(Math.random() < .5 ? -1 : 1); });
+
   prime();                                        // 一載入就量得到寬度的話，先把軌跡跑滿
   if (!REDUCED) kick();
 
+}
+
+/* ═════ 11b · 橫幅進場編排：原本捲到就整片攤開，零層次也不重播 ═════ */
+function bannerIntro(){
+  dispose('bIntro');
+  const sec = $('.sec.banner');
+  if (!sec || REDUCED) return;
+  const stamp = () => {
+    // 只排「此刻看得到」的磚，離場的磚不必浪費延遲
+    $$('.lane', sec).forEach((lane, li) => {
+      const tiles = $$('.lane-tile', lane).filter(t => {
+        const r = t.getBoundingClientRect(); return r.right > 0 && r.left < innerWidth;
+      });
+      tiles.sort((p, q) => (li ? -1 : 1) * (p.getBoundingClientRect().left - q.getBoundingClientRect().left));
+      tiles.forEach((t, i) => t.style.setProperty('--tin', (120 + li * 260 + i * 45) + 'ms'));
+    });
+  };
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting){ if (sec.classList.contains('in')) return; stamp(); sec.classList.add('in'); }
+    else if (e.boundingClientRect.top > innerHeight){
+      sec.classList.remove('in');
+      $$('.lane-tile', sec).forEach(t => t.style.removeProperty('--tin'));
+    }
+  }), { threshold:.22 });
+  io.observe(sec);
+  onDispose('bIntro', () => io.disconnect());
+}
+
+/* ═════ 11c · 橫幅吉祥物：定時跳一下，落地震得腳邊的磚依序彈起 ═════ */
+function bannerBee(){
+  dispose('bBee');
+  const bee = $('.banner-char .bee'), sec = $('.sec.banner');
+  if (!bee || !sec) return;
+
+  const shock = () => {
+    const br = bee.getBoundingClientRect(), bx = br.left + br.width / 2;
+    $$('#laneB .lane-tile').map(t => ({ t, d: Math.abs(t.getBoundingClientRect().left + 75 - bx) }))
+      .filter(o => o.d < 520).sort((p, q) => p.d - q.d).slice(0, 9)
+      .forEach((o, i) => setTimeout(() => {
+        o.t.classList.add('shock'); setTimeout(() => o.t.classList.remove('shock'), 640);
+      }, i * 35));
+    const hot = $('.banner-comb--hot', sec);
+    if (hot){
+      const r = sec.getBoundingClientRect();
+      hot.style.setProperty('--hx', (br.left - r.left + br.width / 2).toFixed(0) + 'px');
+      hot.style.setProperty('--hy', (br.bottom - r.top).toFixed(0) + 'px');
+      hot.style.setProperty('--hr', '280px');
+      hot.classList.add('on'); setTimeout(() => hot.classList.remove('on'), 640);
+    }
+  };
+  const hop = () => {
+    if (REDUCED) return;
+    bee.classList.remove('hop'); void bee.offsetWidth; bee.classList.add('hop');
+    setTimeout(shock, 570);
+    setTimeout(() => bee.classList.remove('hop'), 970);
+  };
+  listen('bBee', bee, 'click', hop);
+  if (!REDUCED) every('bBee', 11000, () => {
+    if (document.hidden) return;
+    const r = sec.getBoundingClientRect();
+    if (r.bottom < innerHeight * .25 || r.top > innerHeight * .85) return;
+    hop();
+  });
+  if (!REDUCED && !COARSE){                       // 看向游標
+    let lean = 0, target = 0;
+    listen('bBee', sec, 'pointermove', e => {
+      const b = bee.getBoundingClientRect();
+      target = clamp((e.clientX - (b.left + b.width / 2)) / 46, -7, 7);
+    });
+    listen('bBee', sec, 'pointerleave', () => { target = 0; });
+    frame('bBee', () => {
+      if (Math.abs(lean - target) < .02) return;
+      lean = lerp(lean, target, .09); bee.style.rotate = lean.toFixed(2) + 'deg';
+    });
+  }
+  /* 手機沒有 hover：每 6 秒讓磚自己起一次浪，畫面自己在演 */
+  if (COARSE && !REDUCED) every('bBee', 6000, () => {
+    if (document.hidden) return;
+    const r = sec.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight) return;
+    const lane = Math.random() < .5 ? '#laneA' : '#laneB';
+    $$(lane + ' .lane-tile').filter(t => { const b = t.getBoundingClientRect(); return b.left > -40 && b.right < innerWidth + 40; })
+      .slice(0, 4).forEach((t, i) => setTimeout(() => {
+        t.classList.add('shock'); setTimeout(() => t.classList.remove('shock'), 620); }, i * 90));
+  });
 }
 
 /* ═════ 12 · 蜂窩底紋的觸碰效果 ═════
    底層持續平移；亮層是同一組蜂窩，用跟著游標的圓形遮罩讓附近的格子亮起來。
    兩層必須共用同一條時間軸，否則格子會對不齊 —— 用 startTime 明確對齊。 */
 function combHover(){
+  dispose('comb');
   const pairs = $$('.banner-comb--hot').map(hot => ({
     hot, run: hot.querySelector('.comb-run'),
     base: hot.previousElementSibling, sec: hot.closest('.sec')
@@ -1468,22 +1900,51 @@ function combHover(){
     if (ba && ha && ba.startTime != null) ha.startTime = ba.startTime;
 
     if (REDUCED) continue;
-    let raf = 0, x = 0, y = 0;
+    /* 原本每幀把游標座標直接寫進遮罩、半徑固定 200px，亮區硬貼著指標又很淡，
+       幾乎察覺不到。改成有慣性的追隨，半徑隨移動速度脹縮。 */
+    let raf = 0, x = 0, y = 0, tx = 0, ty = 0, r0 = 190, lastT = 0, idle = 0;
     const paint = () => {
-      raf = 0;
-      // 亮層外框與區塊同尺寸，座標可以直接用
+      const dx = tx - x, dy = ty - y;
+      x += dx * .16; y += dy * .16; r0 = lerp(r0, 190, .07);
       p.hot.style.setProperty('--hx', x.toFixed(0) + 'px');
       p.hot.style.setProperty('--hy', y.toFixed(0) + 'px');
+      p.hot.style.setProperty('--hr', r0.toFixed(0) + 'px');
+      raf = (Math.abs(dx) + Math.abs(dy) > .4 || Math.abs(r0 - 190) > .6) ? requestAnimationFrame(paint) : 0;
     };
-    p.sec.addEventListener('pointermove', e => {
+    listen('comb', p.sec, 'pointermove', e => {
       const r = p.sec.getBoundingClientRect();
-      x = e.clientX - r.left; y = e.clientY - r.top;
+      const nx = e.clientX - r.left, ny = e.clientY - r.top, now = performance.now();
+      const sp = lastT ? Math.hypot(nx - tx, ny - ty) / Math.max(1, now - lastT) * 16 : 0;
+      lastT = now; idle = now;
+      r0 = clamp(190 + sp * 12, 190, 300);
+      tx = nx; ty = ny;
       p.hot.classList.add('on');
       if (!raf) raf = requestAnimationFrame(paint);
     }, { passive:true });
-    p.sec.addEventListener('pointerleave', () => {
-      p.hot.classList.remove('on');
+    listen('comb', p.sec, 'pointerleave', () => { p.hot.classList.remove('on'); }, { passive:true });
+    // 點一下：一圈六角光環從指尖擴散
+    listen('comb', p.sec, 'pointerdown', () => {
+      p.hot.classList.remove('ping'); void p.hot.offsetWidth; p.hot.classList.add('ping');
+      setTimeout(() => p.hot.classList.remove('ping'), 760);
     }, { passive:true });
+    // 手機／閒置：蜂窩像被蜜蜂的雷達掃過一遍
+    every('comb', 9000, () => {
+      if (!COARSE) return;            // 桌機有 hover 可用，不必付這個代價
+      if (document.hidden || performance.now() - idle < 6000) return;
+      const r = p.sec.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > innerHeight) return;
+      const w = r.width, h = r.height, t0 = performance.now();
+      ty = h * .5; p.hot.classList.add('on');
+      const sweep = () => {
+        const k = clamp((performance.now() - t0) / 1900, 0, 1);
+        x = tx = w * (.92 - k * .88);
+        p.hot.style.setProperty('--hx', x.toFixed(0) + 'px');
+        p.hot.style.setProperty('--hy', ty.toFixed(0) + 'px');
+        p.hot.style.setProperty('--hr', '270px');
+        if (k < 1) requestAnimationFrame(sweep); else p.hot.classList.remove('on');
+      };
+      requestAnimationFrame(sweep);
+    });
   }
 }
 
@@ -1513,12 +1974,14 @@ const boot = () => {
 
   nav(); contactModal(); marquees(); hero(); lanes(); lists();
   soon(); soonCopy(); offer(); orgChart(); scoreboard(); counters(); parallax(); aboutViz(); combHover();
+  heroBee(); boltStrike(); bannerIntro(); bannerBee(); sectionPulse();
   heroParallax(); spotlight(); magnetic(); chrome(); cellGrid();
   reveals(); heroChoreo();
 
   // 切換語系時要重建的區塊（內含由 JS 產生的文字）
   rebuilders = [() => { hero(); lists(); soon(); offer(); orgChart(); scoreboard();
-                        counters(); spotlight(); magnetic(); relabelCells(); }];
+                        counters(); spotlight(); magnetic(); relabelCells();
+                        bannerIntro(); bannerBee(); }];
 
   applyI18n();
   requestAnimationFrame(() => document.body.classList.add('ready'));
