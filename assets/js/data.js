@@ -133,13 +133,6 @@ const CAPS = [
   ['about.cap3k', 'about.cap3v']
 ];
 
-/* ── 佐證清單（區塊 09 右側）──────────────────────────── */
-const PROOF = [
-  { k:'why.p1k', v:'why.p1v', d:'why.p1d', score:96 },
-  { k:'why.p2k', v:'why.p2v', d:'why.p2d', score:99 },
-  { k:'why.p3k', v:'why.p3v', d:'why.p3d', score:94 }
-];
-
 /* ── 自家團隊組織圖（名字為示意，職稱走 i18n）──────────── */
 const ORG = {
   root: { name:'Marcus Lin', init:'ML', role:'org.r.ceo' },
@@ -170,13 +163,32 @@ const ORG_FACTS = [
   { n:SERVICES.length, label:'org.services' }
 ];
 
-/* ── 數據 ─────────────────────────────────────────────── */
-/* trend＝近八季相對走勢（0–100），只用來畫火花圖，不是百分比 */
+/* ── 品質儀表（成績單左側）───────────────────────────────
+   每根支柱都要有「單位」：光寫「交付節奏 96%」沒有人看得懂 96% 是什麼的 96%。
+   metric 就是那個單位，分段條量的是它。 */
+const PROOF = [
+  { k:'why.p1k', m:'why.m1', v:'why.p1v', d:'why.p1d', score:96 },
+  { k:'why.p2k', m:'why.m2', v:'why.p2v', d:'why.p2d', score:99 },
+  { k:'why.p3k', m:'why.m3', v:'why.p3v', d:'why.p3d', score:94 }
+];
+
+/* ── 數據磚（成績單下方）─────────────────────────────────
+   原本四塊都套同一張「近八季走勢」長條圖，但「支援語系」「結算幣別」
+   根本沒有季度成長的概念，圖跟數字對不起來，讀者只會困惑。
+   改成一塊一種編碼，各自說自己的事；視覺語言統一用「一排方塊」保持整齊。
+     trend  ＝ 每季一根，看成長
+     dots   ＝ 每格一種語系，亮色是右至左
+     split  ＝ 一條比例條，法幣 vs 加密
+     cadence＝ 一年 26 個檔期，已交付幾檔 */
 const STATS = [
-  { n:1000, suffix:'+', label:'why.s1', cap:'why.s1c', hero:true, trend:[26,33,39,48,58,70,84,100] },
-  { n:40,   suffix:'+', label:'why.s2', cap:'why.s2c', trend:[45,52,55,63,70,78,88,100] },
-  { n:150,  suffix:'+', label:'why.s3', cap:'why.s3c', trend:[52,58,61,68,74,82,91,100] },
-  { n:300,  suffix:'+', label:'why.s4', cap:'why.s4c', trend:[30,38,46,54,63,75,88,100] }
+  { n:1000, suffix:'+', label:'why.s1', cap:'why.s1c', hero:true,
+    viz:'trend',   legend:'why.v1', trend:[26,33,39,48,58,70,84,100] },
+  { n:40,   suffix:'+', label:'why.s2', cap:'why.s2c',
+    viz:'dots',    legend:'why.v2', total:40, mark:12 },
+  { n:150,  suffix:'+', label:'why.s3', cap:'why.s3c',
+    viz:'split',   legend:'why.v3', parts:[118, 32] },
+  { n:300,  suffix:'+', label:'why.s4', cap:'why.s4c',
+    viz:'cadence', legend:'why.v4', total:26, done:22 }
 ];
 
 /* ── 聯絡方式（彈窗用）────────────────────────────────────

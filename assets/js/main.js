@@ -348,6 +348,7 @@ function boltStrike(){
     const b = bolt.getBoundingClientRect(), h = host.getBoundingClientRect();
     const x = b.right - h.left - 18, y = b.top - h.top + b.height * .5;
     host.dispatchEvent(new CustomEvent('bee:ripple', { detail:{ x, y, r:420 } }));
+    burstAt(b.right - 18, b.top + b.height * .5, { n:14, dist:64, size:4, lift:16, ms:760 });
     const lk = $('.hero-lockup');
     if (lk){ lk.classList.add('hit'); setTimeout(() => lk.classList.remove('hit'), 460); }
   });
@@ -827,10 +828,72 @@ function lists(){
 
 }
 
+/* ═════ 9a · 粒子：只在「有意義的一刻」噴 ═════
+   Owner 的規則是「交會／命中的瞬間噴一點光」，不是環境彩屑。
+   固定定位的單一圖層，用 WAAPI 跑完即回收，不佔 onFrame。 */
+let sparkLayer = null;
+const SPARK_MAX = 90;
+let sparkAlive = 0;
+function burstAt(x, y, opts){
+  if (REDUCED || document.hidden) return;
+  const o = opts || {};
+  const n = Math.min(o.n || 8, SPARK_MAX - sparkAlive);
+  if (n <= 0) return;
+  if (!sparkLayer){
+    sparkLayer = document.createElement('div');
+    sparkLayer.className = 'spark-layer';
+    sparkLayer.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(sparkLayer);
+  }
+  const spread = o.spread == null ? Math.PI * 2 : o.spread;
+  const dir = o.dir == null ? 0 : o.dir;
+  for (let i = 0; i < n; i++){
+    const p = document.createElement('i');
+    p.className = 'spark' + (o.dark ? ' spark--dark' : '');
+    const sz = (o.size || 4) * (.6 + Math.random() * .8);
+    p.style.cssText = `left:${x}px;top:${y}px;width:${sz.toFixed(1)}px;height:${sz.toFixed(1)}px`;
+    sparkLayer.appendChild(p); sparkAlive++;
+    const a = dir + (Math.random() - .5) * spread;
+    const d = (o.dist || 46) * (.45 + Math.random() * .9);
+    const anim = p.animate([
+      { transform:'translate(-50%,-50%) scale(1)', opacity:.95 },
+      { transform:`translate(calc(-50% + ${(Math.cos(a) * d).toFixed(1)}px),`
+                + `calc(-50% + ${(Math.sin(a) * d - (o.lift || 12)).toFixed(1)}px)) scale(.15)`, opacity:0 }
+    ], { duration: (o.ms || 620) * (.7 + Math.random() * .6), easing:'cubic-bezier(.16,1,.3,1)' });
+    const done = () => { p.remove(); sparkAlive--; };
+    anim.onfinish = done; anim.oncancel = done;
+  }
+}
+/* 對元素噴：算出它在視窗中的位置。ax/ay 是 0–1 的相對錨點。 */
+const burstOn = (el, ax, ay, opts) => {
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  if (r.bottom < 0 || r.top > innerHeight) return;
+  burstAt(r.left + r.width * (ax == null ? .5 : ax), r.top + r.height * (ay == null ? .5 : ay), opts);
+};
+
 /* ═════ 9b · 成績單：品質儀表 + 數據火花圖 ═════
    儀表是分段條（24 格），格數＝分數；點一根支柱展開說明，閒置時自動巡覽下一根。
    數字磚在進場時同時跑「數字滾動 + 近八季走勢長條」，滑過再顯示註腳。 */
 const SEG = 24;
+/* 四種編碼各自的標記列。視覺語言統一是「一排方塊」，只有含義不同。 */
+const vizMarks = st => {
+  if (st.viz === 'trend')
+    return st.trend.map((h, i) => `<i class="mk mk--bar" style="--h:${h}%; --d:${i * 55}ms"></i>`).join('');
+  if (st.viz === 'dots')
+    return Array.from({ length: st.total }, (_, i) =>
+      `<i class="mk mk--dot${i < st.mark ? ' is-on' : ''}" style="--d:${i * 16}ms"></i>`).join('');
+  if (st.viz === 'split'){
+    const tot = st.parts.reduce((a, c) => a + c, 0);
+    return st.parts.map((v, i) =>
+      `<i class="mk mk--seg${i ? ' is-alt' : ''}" style="--f:${(v / tot * 100).toFixed(1)}%; --d:${i * 220}ms"></i>`).join('');
+  }
+  if (st.viz === 'cadence')
+    return Array.from({ length: st.total }, (_, i) =>
+      `<i class="mk mk--tick${i < st.done ? ' is-on' : ''}" style="--d:${i * 26}ms"></i>`).join('');
+  return '';
+};
+
 function scoreboard(){
   dispose('score');
 
@@ -844,8 +907,8 @@ function scoreboard(){
       return `<li class="sc-row" data-i="${i}">
         <button type="button" class="sc-btn" aria-expanded="false" aria-controls="scDrop-${i}">
           <span class="sc-n">0${i + 1}</span>
-          <span class="sc-k">${t(p.k)}</span>
-          <span class="sc-meter" aria-hidden="true">${segs}</span>
+          <span class="sc-k">${t(p.k)}<em class="sc-m">${t(p.m)}</em></span>
+          <span class="sc-meter" aria-hidden="true">${segs}<b class="sc-head"></b></span>
           <span class="sc-val"><b data-count="${p.score}" data-suffix="">${p.score}</b><em>%</em></span>
         </button>
         <div class="sc-drop" id="scDrop-${i}"><p class="sc-v">${t(p.v)}</p><p class="sc-d">${t(p.d)}</p></div>
@@ -860,6 +923,11 @@ function scoreboard(){
         const on = n === i;
         r.classList.toggle('on', on);
         $('.sc-btn', r).setAttribute('aria-expanded', String(on));
+        if (on){
+          // 量表填滿到頭的那一刻，在最後一格噴一點光
+          const seg = $$('.sc-meter i.on', r).pop();
+          if (seg) setTimeout(() => burstOn(seg, .5, .2, { n:7, dist:26, size:3, lift:8, ms:520 }), 340);
+        }
       });
     };
     rows.forEach((r, i) => listen('score', $('.sc-btn', r), 'click', () => {
@@ -882,23 +950,48 @@ function scoreboard(){
     onDispose('score', () => io.disconnect());
   }
 
-  /* ── 數字磚 ── */
+  /* ── 數據磚 ── */
   const stats = $('#statsList');
   if (stats){
-    stats.innerHTML = STATS.map(s => {
-      const bars = s.trend.map((h, i) =>
-        `<i style="--h:${h}%; --d:${i * 55}ms"></i>`).join('');
-      return `<li class="stat-tile spot${s.hero ? ' is-hero' : ''}">
-        <b data-count="${s.n}" data-suffix="${s.suffix}">${s.n.toLocaleString()}${s.suffix}</b>
-        <span class="stat-k">${t(s.label)}</span>
-        <span class="stat-spark" role="img" aria-label="${t('why.trend')}">${bars}</span>
-        <span class="stat-cap">${t(s.cap)}</span>
-      </li>`;
-    }).join('');
-    const io2 = new IntersectionObserver(es => es.forEach(e =>
-      e.target.classList.toggle('play', e.isIntersecting)), { threshold:.3 });
-    $$('.stat-tile', stats).forEach(el => io2.observe(el));
-    onDispose('score', () => io2.disconnect());
+    stats.innerHTML = STATS.map(st => `<li class="stat-tile spot${st.hero ? ' is-hero' : ''}" data-viz="${st.viz}">
+        <b data-count="${st.n}" data-suffix="${st.suffix}">${st.n.toLocaleString()}${st.suffix}</b>
+        <span class="stat-k">${t(st.label)}</span>
+        <span class="stat-marks" role="img" aria-label="${t(st.legend)}">${vizMarks(st)}</span>
+        <span class="stat-legend">${t(st.legend)}</span>
+        <span class="stat-cap">${t(st.cap)}</span>
+      </li>`).join('');
+
+    const tiles = $$('.stat-tile', stats);
+    const io2 = new IntersectionObserver(es => es.forEach(e => {
+      const on = e.isIntersecting;
+      e.target.classList.toggle('play', on);
+      if (on && !REDUCED){
+        // 標記列填滿到末端時，在最後一格點一下火
+        const last = $$('.mk', e.target).pop();
+        const delay = 300 + $$('.mk', e.target).length * 12;
+        clearTimeout(e.target.__st);
+        e.target.__st = setTimeout(() => burstOn(last, .5, .2,
+          { n:8, dist:30, size:3.5, lift:10, dark:e.target.classList.contains('is-hero') }), delay);
+      }
+    }), { threshold:.35 });
+    tiles.forEach(el => io2.observe(el));
+    onDispose('score', () => { io2.disconnect(); tiles.forEach(el => clearTimeout(el.__st)); });
+
+    // 觸控裝置沒有 hover：每 9 秒讓一塊磚自己亮一次，畫面自己在演
+    if (!REDUCED) every('score', 9000, () => {
+      if (document.hidden) return;
+      const vis = tiles.filter(el => { const r = el.getBoundingClientRect(); return r.top < innerHeight - 40 && r.bottom > 40; });
+      if (!vis.length) return;
+      const el = vis[(scoreboard.k = (scoreboard.k || 0) + 1) % vis.length];
+      el.classList.add('is-on');
+      const last = $$('.mk', el).pop();
+      burstOn(last, .5, .2, { n:6, dist:26, size:3, lift:8, dark:el.classList.contains('is-hero') });
+      setTimeout(() => el.classList.remove('is-on'), 1100);
+    });
+    listen('score', stats, 'pointerdown', e => {
+      const el = e.target.closest('.stat-tile'); if (!el) return;
+      burstAt(e.clientX, e.clientY, { n:9, dist:34, size:3.5, lift:10, dark:el.classList.contains('is-hero') });
+    });
   }
 }
 
@@ -996,6 +1089,11 @@ function orgChart(){
       if (byK[d.dataset.k]) byK[d.dataset.k].path.classList.toggle('is-on', on);
     });
     if (k) applySig(k);
+    if (k && !REDUCED){
+      const dept = depts.find(d => d.dataset.k === k);
+      const hex = dept && $('.org-hex', dept);
+      if (hex) setTimeout(() => burstOn(hex, .5, .5, { n:9, dist:34, size:3.5, lift:6, ms:600 }), 90);
+    }
     if (detail){
       detail.classList.add('swap');
       setTimeout(() => { renderDetail(k); detail.classList.remove('swap'); }, 160);
@@ -1236,6 +1334,8 @@ function heroBee(){
     if (REDUCED) return;
     bee.classList.remove('punch'); void bee.offsetWidth; bee.classList.add('punch');
     setTimeout(() => { const p = fistPoint(); ripple(p.x, p.y, 400);
+      const h = host.getBoundingClientRect();
+      burstAt(h.left + p.x, h.top + p.y, { n:12, dist:56, size:4.5, lift:14, ms:700 });
       const st = $('.hero-stats'); if (st){ st.classList.add('shake'); setTimeout(() => st.classList.remove('shake'), 340); } }, 210);
     setTimeout(() => bee.classList.remove('punch'), 620);
   };
@@ -1737,6 +1837,9 @@ function aboutViz(){
         viz.classList.add('hit'); if (big) viz.classList.add('hit--big');
         setTimeout(() => viz.classList.remove('hit', 'hit--big'), 760);
         flash(rd.hit);
+        if (big){ const pr = plot.getBoundingClientRect();
+          burstAt(pr.left + pr.width * .70, pr.top + pr.height / 2,
+                  { n:12, dist:52, size:3.5, lift:10, ms:700 }); }
         if (big){ const sec = $('#about'); if (sec){ sec.classList.add('flash'); setTimeout(() => sec.classList.remove('flash'), 650); } }
       }
     }
@@ -1802,7 +1905,16 @@ function aboutViz(){
 function bannerIntro(){
   dispose('bIntro');
   const sec = $('.sec.banner');
-  if (!sec || REDUCED) return;
+  if (!sec) return;
+  // 觸碰回饋：手機沒有 hover，按下去必須看得到反應
+  listen('bIntro', sec, 'pointerdown', e => {
+    const tile = e.target.closest('.lane-tile');
+    if (!tile) return;
+    tile.classList.add('is-tap');
+    burstAt(e.clientX, e.clientY, { n:8, dist:30, size:3.5, lift:12, ms:560 });
+    setTimeout(() => tile.classList.remove('is-tap'), 620);
+  }, { passive:true });
+  if (REDUCED) return;
   const stamp = () => {
     // 只排「此刻看得到」的磚，離場的磚不必浪費延遲
     $$('.lane', sec).forEach((lane, li) => {
@@ -1832,10 +1944,15 @@ function bannerBee(){
 
   const shock = () => {
     const br = bee.getBoundingClientRect(), bx = br.left + br.width / 2;
+    // 落地那一下：腳底往兩側噴塵（黑色顆粒，黃底上才看得見）
+    burstAt(bx, br.bottom - 6, { n:9, dist:52, size:4, lift:2, spread:Math.PI * .9, dir:Math.PI, dark:true, ms:640 });
+    burstAt(bx, br.bottom - 6, { n:9, dist:52, size:4, lift:2, spread:Math.PI * .9, dir:0, dark:true, ms:640 });
     $$('#laneB .lane-tile').map(t => ({ t, d: Math.abs(t.getBoundingClientRect().left + 75 - bx) }))
       .filter(o => o.d < 520).sort((p, q) => p.d - q.d).slice(0, 9)
       .forEach((o, i) => setTimeout(() => {
-        o.t.classList.add('shock'); setTimeout(() => o.t.classList.remove('shock'), 640);
+        o.t.classList.add('shock');
+        if (i < 4) burstOn(o.t, .5, 0, { n:4, dist:24, size:3, lift:10, ms:520 });   // 被震得最兇的幾塊冒火花
+        setTimeout(() => o.t.classList.remove('shock'), 640);
       }, i * 35));
     const hot = $('.banner-comb--hot', sec);
     if (hot){

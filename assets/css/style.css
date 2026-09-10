@@ -1396,28 +1396,6 @@ html.cm-open{ overflow:hidden }
 .sc-d{margin-top:8px; padding-left:14px; border-left:2px solid var(--a-primary);
   font-family:var(--ff-c); font-size:14px; line-height:1.75; color:var(--t-muted)}
 
-/* 數字磚：大數字 → 標籤 → 近八季走勢條 → 註腳 */
-.stats li.stat-tile{position:relative; overflow:hidden; padding:26px 24px 22px; display:flex; flex-direction:column}
-.stats li.stat-tile b{font-size:44px; transition:transform .4s var(--e-out); transform-origin:left bottom}
-.stat-tile:hover b{transform:scale(1.04)}
-.stats li .stat-k{display:block; margin-top:9px; font-family:var(--ff-b); font-weight:600; font-size:15px; color:var(--t-primary)}
-.stat-tile.is-hero .stat-k{color:var(--t-on-accent)}
-.stats li .stat-spark{display:flex; align-items:flex-end; justify-content:space-between; gap:6px;
-  height:46px; width:100%; margin:auto 0 0; padding-top:20px; box-sizing:content-box}
-.stats li .stat-spark i{flex:1 1 auto; max-width:16px; height:0; min-height:3px; border-radius:2px 2px 0 0;
-  background:var(--g-300); display:block; transition:height .7s var(--e-out) var(--d,0ms), background .35s var(--e)}
-.stat-tile.play .stat-spark i{height:var(--h)}
-.stats li .stat-spark i:last-child{background:var(--g-500)}      /* 當期用亮一階，看得出「現在在哪」 */
-.stat-tile:hover .stat-spark i{background:color-mix(in srgb, var(--a-primary) 60%, transparent)}
-.stat-tile:hover .stat-spark i:last-child{background:var(--a-primary)}
-.stat-tile.is-hero .stat-spark i{background:rgba(11,11,12,.22)}
-.stat-tile.is-hero .stat-spark i:last-child{background:rgba(11,11,12,.5)}
-.stat-tile.is-hero:hover .stat-spark i{background:rgba(11,11,12,.4)}
-.stat-tile.is-hero:hover .stat-spark i:last-child{background:rgba(11,11,12,.75)}
-.stats li .stat-cap{display:block; margin-top:12px; padding-top:11px;
-  border-top:1px solid var(--b-subtle); font-family:var(--ff-c); font-size:12.5px; line-height:1.5; color:var(--t-muted)}
-.stat-tile.is-hero .stat-cap{border-top-color:rgba(11,11,12,.22); color:rgba(11,11,12,.72)}
-
 @media (max-width:1024px){ .why .split.why-split{gap:44px} }
 @media (max-width:720px){
   .sc-btn{grid-template-columns:auto minmax(0,1fr) auto; gap:12px 14px; padding:16px 2px}
@@ -1427,17 +1405,11 @@ html.cm-open{ overflow:hidden }
   .sc-k{font-size:17px; white-space:normal}
   .sc-val{font-size:19px}
   .sc-row.on .sc-drop{margin-left:0}
-  .stats li.stat-tile{padding:20px 16px 18px}
-  .stats li .stat-spark{height:30px; gap:4px; padding-top:14px}
-  .stats li .stat-spark i{max-width:10px}
-  .stats li.stat-tile b{font-size:30px}
-  .stats li .stat-k{font-size:13.5px; margin-top:6px}
-  .stats li .stat-cap{margin-top:10px; padding-top:9px; font-size:11.5px}
+
 }
 @media (prefers-reduced-motion:reduce){
-  .sc-meter i, .stats li .stat-spark i{transition:none}
+  .sc-meter i{transition:none}
   .score-list .sc-meter i.on{height:24px; background:var(--a-primary); opacity:.85}
-  .stats li .stat-spark i{height:var(--h)}
   .score-live em{animation:none}
 }
 
@@ -2133,3 +2105,206 @@ body{ transition:opacity .38s cubic-bezier(.22,.61,.36,1) }
 .sec:not(.is-vis) .oc-soon i::after,
 .sec:not(.is-vis) .score-live em,
 .sec:not(.is-vis) .bolt-streak.in{ animation-play-state:paused }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Lite v3 · 粒子與成績單改版
+   ─────────────────────────────────────────────────────────────────────
+   粒子只在「有意義的一刻」出現：量表填滿到頭、標記列點到末端、按下磚。
+   不做環境彩屑。
+   ═══════════════════════════════════════════════════════════════════════ */
+.spark-layer{ position:fixed; inset:0; z-index:120; pointer-events:none; overflow:hidden }
+.spark{ position:absolute; border-radius:2px; background:var(--a-primary);
+  box-shadow:0 0 8px rgba(255,199,0,.85); will-change:transform,opacity }
+.spark--dark{ background:var(--s-page); box-shadow:0 0 8px rgba(0,0,0,.5) }
+
+/* ── 品質儀表：標題底下補上「這個百分比量的是什麼」 ── */
+.sc-k{ display:flex; flex-direction:column; gap:3px; white-space:normal }
+.sc-m{ font-family:var(--ff-m); font-weight:500; font-size:10.5px; letter-spacing:.1em;
+  text-transform:uppercase; font-style:normal; color:var(--t-ghost); transition:color .35s var(--e) }
+:root[data-lang="zh"] .sc-m, :root[data-lang="th"] .sc-m{ font-family:var(--ff-c); font-size:12px; letter-spacing:.02em; text-transform:none }
+.sc-row.on .sc-m{ color:var(--t-accent) }
+.sc-meter{ position:relative }
+/* 量表填滿到頭的那一格加一點光暈，看得出「填到這裡」 */
+.sc-head{ position:absolute; top:0; bottom:0; width:2px; border-radius:2px; background:var(--a-hover);
+  opacity:0; left:calc(var(--hx,0) * 1px); box-shadow:0 0 10px rgba(255,199,0,.9);
+  transition:opacity .3s var(--e) }
+.sc-row.on .sc-head{ opacity:0 }
+
+/* ── 數據磚：一塊一種編碼，視覺語言統一是「一排方塊」 ── */
+.stats li.stat-tile{ position:relative; overflow:hidden; padding:26px 24px 22px;
+  display:flex; flex-direction:column;
+  transition:transform .42s var(--e-out), border-color .3s var(--e), box-shadow .42s var(--e) }
+.stats li.stat-tile b{ font-size:44px; font-variant-numeric:tabular-nums;
+  transition:transform .4s var(--e-out); transform-origin:left bottom }
+.stat-tile:hover b,.stat-tile.is-on b{ transform:scale(1.04) }
+.stats li .stat-k{ display:block; margin-top:9px; font-family:var(--ff-b); font-weight:600; font-size:15px; color:var(--t-primary) }
+.stat-tile.is-hero .stat-k{ color:var(--t-on-accent) }
+
+.stats li .stat-marks{ display:flex; width:100%; margin:auto 0 0; padding-top:20px }
+.mk{ display:block; background:var(--g-300); border-radius:2px;
+  transition:background .35s var(--e), transform .4s var(--e-out) }
+.stat-tile.is-hero .mk{ background:rgba(11,11,12,.24) }
+/* trend：每格一季 */
+.stat-tile[data-viz="trend"] .stat-marks{ align-items:flex-end; justify-content:space-between; gap:6px; height:46px }
+.mk--bar{ flex:1 1 auto; max-width:16px; height:0; min-height:3px; border-radius:2px 2px 0 0;
+  transition:height .7s var(--e-out) var(--d,0ms), background .35s var(--e) }
+.stat-tile.play .mk--bar{ height:var(--h) }
+.mk--bar:last-child{ background:var(--g-500) }
+.stat-tile.is-hero .mk--bar:last-child{ background:rgba(11,11,12,.52) }
+/* dots：每格一種語系，亮色是右至左 */
+.stat-tile[data-viz="dots"] .stat-marks{ flex-wrap:wrap; gap:4px; align-content:flex-end }
+.mk--dot{ width:calc((100% - 36px) / 10); aspect-ratio:1; border-radius:2px; opacity:0; transform:scale(.4);
+  transition:opacity .34s var(--e-out) var(--d,0ms), transform .42s var(--e-spring) var(--d,0ms), background .35s var(--e) }
+.stat-tile.play .mk--dot{ opacity:1; transform:none }
+.mk--dot.is-on{ background:var(--a-primary) }
+.stat-tile.is-hero .mk--dot.is-on{ background:var(--s-page) }
+/* split：一條比例條 */
+.stat-tile[data-viz="split"] .stat-marks{ align-items:flex-end; gap:4px; height:46px }
+.mk--seg{ height:18px; border-radius:3px; width:0; background:var(--a-primary);
+  transition:width .8s var(--e-out) var(--d,0ms) }
+.stat-tile.play .mk--seg{ width:calc(var(--f) - 2px) }
+.mk--seg.is-alt{ background:var(--g-300) }
+.stat-tile.is-hero .mk--seg{ background:var(--s-page) }
+.stat-tile.is-hero .mk--seg.is-alt{ background:rgba(11,11,12,.3) }
+/* cadence：一年 26 個檔期 */
+.stat-tile[data-viz="cadence"] .stat-marks{ align-items:flex-end; justify-content:space-between; gap:2px; height:46px }
+.mk--tick{ flex:1 1 auto; height:10px; border-radius:1.5px; transform:scaleY(0); transform-origin:50% 100%;
+  transition:transform .38s var(--e-spring) var(--d,0ms), background .35s var(--e), height .38s var(--e-out) var(--d,0ms) }
+.stat-tile.play .mk--tick{ transform:none }
+.mk--tick.is-on{ background:var(--a-primary); height:26px }
+.stat-tile.is-hero .mk--tick.is-on{ background:var(--s-page) }
+
+.stats li .stat-legend{ display:block; margin-top:10px; font-family:var(--ff-m); font-size:10px;
+  letter-spacing:.08em; color:var(--t-ghost); line-height:1.4 }
+:root[data-lang="zh"] .stat-legend, :root[data-lang="th"] .stat-legend{ font-family:var(--ff-c); font-size:11.5px; letter-spacing:0 }
+.stat-tile.is-hero .stat-legend{ color:rgba(11,11,12,.55) }
+.stats li .stat-cap{ display:block; margin-top:10px; padding-top:10px;
+  border-top:1px solid var(--b-subtle); font-family:var(--ff-c); font-size:12.5px; line-height:1.5; color:var(--t-muted) }
+.stat-tile.is-hero .stat-cap{ border-top-color:rgba(11,11,12,.22); color:rgba(11,11,12,.72) }
+@media (hover:hover){
+  .stats li.stat-tile:hover{ transform:translateY(-5px); box-shadow:0 26px 50px -26px rgba(0,0,0,.8) }
+  .stats li.stat-tile.is-hero:hover{ box-shadow:0 26px 54px -24px rgba(255,199,0,.5) }
+  .stat-tile:hover .mk{ background:color-mix(in srgb, var(--a-primary) 55%, transparent) }
+  .stat-tile:hover .mk.is-on,.stat-tile:hover .mk--bar:last-child{ background:var(--a-primary) }
+  .stat-tile.is-hero:hover .mk{ background:rgba(11,11,12,.42) }
+  .stat-tile.is-hero:hover .mk.is-on{ background:var(--s-page) }
+}
+/* 觸控裝置的替代節奏：JS 每 9 秒點名一塊 */
+.stat-tile.is-on{ transform:translateY(-5px) }
+.stat-tile.is-on .mk{ background:color-mix(in srgb, var(--a-primary) 55%, transparent) }
+.stat-tile.is-on .mk.is-on,.stat-tile.is-on .mk--bar:last-child{ background:var(--a-primary) }
+.stat-tile.is-hero.is-on .mk{ background:rgba(11,11,12,.42) }
+.stat-tile.is-hero.is-on .mk.is-on{ background:var(--s-page) }
+.stat-tile:active{ transform:translateY(-2px) scale(.985); transition-duration:.1s }
+
+@media (prefers-reduced-motion: reduce){
+  .stat-tile.play .mk--bar{ height:var(--h) } .mk--dot{ opacity:1; transform:none }
+  .mk--seg{ transition:none } .mk--tick{ transform:none }
+  .mk,.mk--bar,.mk--dot,.mk--seg,.mk--tick{ transition:none }
+  .stat-tile:hover,.stat-tile.is-on{ transform:none }
+  .spark-layer{ display:none }
+}
+
+/* ── 手機：磚寬只有 ~131px，8 根柱子的最大寬與間距要收，否則會撐破磚 ── */
+@media (max-width:720px){
+  .stats li.stat-tile{ padding:18px 14px 16px }
+  .stats li.stat-tile b{ font-size:30px }
+  .stats li .stat-k{ font-size:13.5px; margin-top:6px }
+  .stats li .stat-marks{ padding-top:14px }
+  .stat-tile[data-viz="trend"] .stat-marks,
+  .stat-tile[data-viz="split"] .stat-marks,
+  .stat-tile[data-viz="cadence"] .stat-marks{ height:34px }
+  .stat-tile[data-viz="trend"] .stat-marks{ gap:3px }
+  .mk--bar{ max-width:10px }
+  .mk--seg{ height:14px }
+  .mk--tick.is-on{ height:20px } .mk--tick{ height:8px }
+  .stat-tile[data-viz="dots"] .stat-marks{ gap:3px }
+  .mk--dot{ width:calc((100% - 27px) / 10) }
+  .stats li .stat-legend{ font-size:9.5px; letter-spacing:.02em; margin-top:8px;
+    overflow-wrap:anywhere; word-break:break-word }
+  :root[data-lang="zh"] .stat-legend, :root[data-lang="th"] .stat-legend{ font-size:11px }
+  .stats li .stat-cap{ margin-top:9px; padding-top:8px; font-size:11.5px; overflow-wrap:anywhere }
+}
+.stats li .stat-legend{ overflow-wrap:anywhere }
+.sc-k{ min-width:0 }
+
+/* ── 收掉數據磚的空白：標記列不再被推到底，40 格改兩排 ── */
+.stats li .stat-marks{ margin:18px 0 0 }
+.stats li .stat-cap{ margin-top:auto; padding-top:12px }
+.stat-tile[data-viz="dots"] .stat-marks{ height:46px; align-content:space-between; gap:3px }
+.mk--dot{ width:calc((100% - 57px) / 20); aspect-ratio:auto; height:21px }
+.stats li .stat-legend{ color:color-mix(in srgb, var(--t-muted) 88%, var(--t-primary)) }
+.stat-tile.is-hero .stat-legend{ color:rgba(11,11,12,.62) }
+.stat-tile.is-hero .mk--bar{ background:rgba(11,11,12,.34) }
+.stat-tile.is-hero .mk--bar:last-child{ background:rgba(11,11,12,.62) }
+@media (max-width:1024px){
+  .mk--dot{ width:calc((100% - 27px) / 10); height:calc((46px - 9px) / 4) }
+  .stat-tile[data-viz="dots"] .stat-marks{ align-content:space-between }
+}
+@media (max-width:720px){
+  .stats li .stat-marks{ margin-top:14px }
+  .stat-tile[data-viz="dots"] .stat-marks{ height:34px; gap:2px }
+  .mk--dot{ width:calc((100% - 18px) / 10); height:calc((34px - 6px) / 4) }
+  .stats li .stat-cap{ padding-top:10px }
+}
+
+/* 圖示磚的觸碰回饋（手機沒有 hover，這是唯一看得到的反應） */
+.lane-tile.is-tap{ transform:translateY(-8px) scale(.97);
+  box-shadow:inset 0 0 0 2px var(--a-primary), 0 16px 28px -14px rgba(0,0,0,.6);
+  transition-duration:.12s }
+.lane-tile.is-tap svg{ animation:tilePop .5s var(--e-spring) both }
+@media (prefers-reduced-motion: reduce){ .lane-tile.is-tap{ transform:none } .lane-tile.is-tap svg{ animation:none } }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Lite v3 · 手機版視覺優先
+   Owner：「手機版視覺更重要」。原本 ≤720px 只是把桌機版縮小，
+   結果每一段都是「大標 → 一片空白 → 一段文字」。這裡把空白收掉、
+   讓每一段在手機上都有一個看得到的視覺元素。
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (max-width:720px){
+  /* 區塊上下留白統一收一階 */
+  .statement,.offer,.why,.studios{ padding:76px 0 84px }
+  .soon{ padding-block:76px }
+  .statement .hairline,.why .hairline{ margin:6px 0 30px }
+  .split,.soon-grid,.offer-grid,.cta-grid{ gap:34px }
+
+  /* 宣言區：標題與面板貼近，面板本身放大成主角 */
+  .head-row{ gap:16px }
+  .statement .ghost{ margin-bottom:4px }
+  .viz{ margin:0; padding:14px 14px 12px; border-radius:14px }
+  .viz-plot{ height:104px }
+  .viz-head{ margin-bottom:8px }
+  .viz-reads{ margin-top:10px; padding-top:10px; gap:8px }
+  .viz-reads b{ font-size:19px }
+  .viz-reads li::after{ height:2.5px }
+  #capsList{ margin-top:2px }
+
+  /* 成績單：儀表與數字磚之間不要斷開 */
+  .why .sec-label{ margin-top:30px }
+  .score-head{ margin-bottom:2px }
+  .sc-btn{ padding:14px 2px }
+  .sc-row.on .sc-drop{ margin-bottom:16px }
+  .stats{ gap:10px }
+
+  /* 組織圖：三個數據磚與樹狀圖靠緊 */
+  .org-split{ margin-bottom:32px }
+  .org-root{ margin-bottom:18px }
+
+  /* 路線圖／方案：標題與內容之間的空檔收掉 */
+  .offer .marquee{ margin-bottom:38px }
+  .sec-intro,.soon-copy{ margin-bottom:6px }
+}
+
+/* 手機沒有 hover：全站的「按下去」都要有形變回饋 */
+@media (hover:none){
+  .btn:active,.btn-ghost:active,.hcard:active .hcard-media,
+  .stat-tile:active,.org-node--head:active,.sc-btn:active,.offer-list button:active{
+    transform:scale(.97); transition-duration:.1s }
+  .sc-btn:active .sc-k{ color:var(--a-primary) }
+}
+
+/* ── 修正：交界牙口（z-index:3）蓋在上排跑道之上，把圖示的下半截塗掉了。
+   正確層級：蜂窩底紋 0 → 牙口 1 → 跑道／大字 2 → 蜜蜂 4 ── */
+.banner-sheen,.banner-comb,.banner-comb--hot,.banner-vignette,
+.cta .banner-sheen,.cta .banner-comb,.cta .banner-comb--hot,.cta .banner-vignette{ z-index:0 }
+.banner::before,.cta::before{ z-index:1 }
