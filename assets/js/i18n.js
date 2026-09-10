@@ -199,8 +199,8 @@ const I18N = {
   'why.m2':         { zh:'一次过件率', en:'First-pass certification', th:'อัตราผ่านครั้งแรก' },
   'why.m3':         { zh:'SLA 达成率', en:'SLA attainment', th:'อัตราบรรลุ SLA' },
   /* 數據磚：legend＝怎麼讀這張圖，cap＝這張圖說了什麼 */
-  'why.v1':         { zh:'每格一季 · 24Q1 → 25Q4', en:'One block per quarter · 24Q1 → 25Q4', th:'หนึ่งบล็อกต่อไตรมาส · 24Q1 → 25Q4' },
-  'why.v2':         { zh:'每格一种语言 · 亮色为右至左', en:'One block per language · highlighted = RTL', th:'หนึ่งบล็อกต่อภาษา · สีเด่น = RTL' },
+  'why.v1':         { zh:'每格一季 · 24Q1 → 25Q4', en:'1 block = 1 quarter · 24Q1 → 25Q4', th:'1 บล็อก = 1 ไตรมาส · 24Q1 → 25Q4' },
+  'why.v2':         { zh:'每格一种语言 · 黄色为右至左', en:'1 block = 1 language · yellow = RTL', th:'1 บล็อก = 1 ภาษา · สีเหลือง = RTL' },
   'why.v3':         { zh:'法币 118 · 加密 32', en:'118 fiat · 32 crypto', th:'เงินตรา 118 · คริปโต 32' },
   'why.v4':         { zh:'一年 26 个档期 · 已交付 22', en:'26 slots a year · 22 shipped', th:'26 ช่วงต่อปี · ส่งแล้ว 22' },
   'why.s1c':        { zh:'近 8 季成长 3.8 倍', en:'Up 3.8x over eight quarters', th:'โต 3.8 เท่าใน 8 ไตรมาส' },

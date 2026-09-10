@@ -2308,3 +2308,10 @@ body{ transition:opacity .38s cubic-bezier(.22,.61,.36,1) }
 .banner-sheen,.banner-comb,.banner-comb--hot,.banner-vignette,
 .cta .banner-sheen,.cta .banner-comb,.cta .banner-comb--hot,.cta .banner-vignette{ z-index:0 }
 .banner::before,.cta::before{ z-index:1 }
+
+/* 手機：40 格語言圖與底下的圖例貼太近，補一點呼吸 */
+@media (max-width:720px){
+  .stat-tile[data-viz="dots"] .stat-marks{ height:30px }
+  .mk--dot{ height:calc((30px - 6px) / 4) }
+  .stats li .stat-legend{ margin-top:11px; line-height:1.45 }
+}
