@@ -285,7 +285,27 @@ function reveals(){
     });
   });
 
-  if (REDUCED) $$('[data-reveal], .rv-line').forEach(el => el.classList.add('in'));
+  if (REDUCED){ $$('[data-reveal], .rv-line').forEach(el => el.classList.add('in')); return; }
+
+  /* 守門員：內容的可見性不可以「只」依賴 JS 加 class。
+     只要元素的上緣已經進到視窗底下，1.2 秒內一定要看得到，
+     不管是被 pending 卡住、observer 沒觸發、還是任何我沒想到的路徑。
+     Owner 看到的空白就是缺了這一層保險。 */
+  const sweep = () => {
+    if (document.hidden) return;
+    $$('[data-reveal]').forEach(el => {
+      if (el.classList.contains('in') || owned(el)) return;
+      const r = el.getBoundingClientRect();
+      if (r.top < innerHeight - 20 && r.bottom > -200){ pending.delete(el); play(el); }
+    });
+    $$('.rv-line').forEach(l => {
+      if (l.classList.contains('in') || owned(l)) return;
+      const r = l.getBoundingClientRect();
+      if (r.top < innerHeight - 20 && r.bottom > -200) l.classList.add('in');
+    });
+  };
+  setInterval(sweep, 1200);
+  addEventListener('load', () => setTimeout(sweep, 400), { once:true });
 }
 
 /* ═════ 3 · HERO 進場編排（依序而非同時）═════ */
@@ -333,10 +353,24 @@ function playHero(replay){
   };
 
   if (!replay) return start();
-  // 退場：由下往上反序收起，短而果斷（ease-in），大標不藏起來免得讀者被打斷
-  const outs = ['.hero-stats', '.hero-sub', '.brand-plate', '.bolt-streak'];
-  outs.forEach((sel, i) => { const el = $(sel); if (el) heroTimers.push(setTimeout(() => el.classList.add('is-out'), i * 45)); });
-  heroTimers.push(setTimeout(start, 300));
+
+  /* 定時重播不可以把已經在螢幕上的內容清空。
+     舊做法是移除全部 .in 再依序加回來，於是每 14 秒（以及每次捲回頂端）
+     首屏下半部會整片消失約兩秒 —— 那不是重播，那是故障閃爍。
+     改成「只重跑重音」：閃電再掃一次、品牌板掃光、黃線重新充能、數字重滾，
+     文字一秒都不會消失。 */
+  const pulse = (sel, cls, ms) => {
+    const el = $(sel); if (!el) return;
+    el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
+    heroTimers.push(setTimeout(() => el.classList.remove(cls), ms));
+  };
+  const bolt = $('.bolt-streak');
+  if (bolt){                                   // 閃電本身就是「掃過去」，重掃才有意義
+    bolt.classList.remove('in'); void bolt.offsetWidth;
+    heroTimers.push(setTimeout(() => bolt.classList.add('in'), 50));
+  }
+  heroTimers.push(setTimeout(() => pulse('.brand-plate', 'sheen', 1200), 480));
+  heroTimers.push(setTimeout(() => pulse('.hero-stats', 'charge', 1300), 620));
 }
 /* 閃電掃完的那一刻＝首屏的重拍：尖端噴火花、蜂窩由落點向外亮一圈、大標被震一下 */
 function boltStrike(){
@@ -404,8 +438,8 @@ function hero(){
   const card = g => `
     <a class="hcard" href="${linkFor(g.t)}"${dataFor(g.t)} aria-label="${g.t}">
       <div class="hcard-media spot">
-        <img class="bg" src="${g.bg}" alt="" loading="lazy">
-        <img class="hcard-char" src="${g.ch}" alt="" loading="lazy">
+        <img class="bg" src="${g.bg}" alt="" loading="eager" decoding="async" fetchpriority="low">
+        <img class="hcard-char" src="${g.ch}" alt="" loading="eager" decoding="async" fetchpriority="low">
         <span class="hcard-tag">${t(g.tag)}</span>
         <span class="hcard-soon-clip"><span class="hcard-soon" data-i18n="tag.soon">${t('tag.soon')}</span></span>
         <div class="hcard-veil"></div>
@@ -943,9 +977,9 @@ function scoreboard(){
     });
     const io = new IntersectionObserver(es => es.forEach(e => {
       inView = e.isIntersecting;
-      list.classList.toggle('play', inView);
-      if (inView && act < 0) setAct(0);
-    }), { threshold:.25 });
+      if (inView){ list.classList.add('play'); if (act < 0) setAct(0); }
+      else if (e.boundingClientRect.top > innerHeight) list.classList.remove('play');
+    }), { threshold:0, rootMargin:'0px 0px -8px 0px' });
     io.observe(list);
     onDispose('score', () => io.disconnect());
   }
@@ -964,7 +998,8 @@ function scoreboard(){
     const tiles = $$('.stat-tile', stats);
     const io2 = new IntersectionObserver(es => es.forEach(e => {
       const on = e.isIntersecting;
-      e.target.classList.toggle('play', on);
+      if (on) e.target.classList.add('play');
+      else if (e.boundingClientRect.top > innerHeight) e.target.classList.remove('play');
       if (on && !REDUCED){
         // 標記列填滿到末端時，在最後一格點一下火
         const last = $$('.mk', e.target).pop();
@@ -973,7 +1008,7 @@ function scoreboard(){
         e.target.__st = setTimeout(() => burstOn(last, .5, .2,
           { n:8, dist:30, size:3.5, lift:10, dark:e.target.classList.contains('is-hero') }), delay);
       }
-    }), { threshold:.35 });
+    }), { threshold:0, rootMargin:'0px 0px -8px 0px' });
     tiles.forEach(el => io2.observe(el));
     onDispose('score', () => { io2.disconnect(); tiles.forEach(el => clearTimeout(el.__st)); });
 
@@ -1124,11 +1159,14 @@ function orgChart(){
   });
 
   /* 進場：畫線 + 節點依序彈入；離開視窗就重置，回來再播一次 */
+  /* threshold .18 只要露出不到 18% 就算「離開」，於是剛捲到區塊上緣時
+     整棵樹的節點會全部退回 opacity:0 —— 使用者看到的就是標題底下一片空白。
+     改成：只要碰到視窗就播；只有「完全捲到視窗下方」才重置以便重播。 */
   const io = new IntersectionObserver(es => es.forEach(e => {
     inView = e.isIntersecting;
     if (inView){ drawLines(); requestAnimationFrame(() => root.classList.add('play')); }
-    else { root.classList.remove('play'); if (focus) setFocus(null); }
-  }), { threshold:.18 });
+    else if (e.boundingClientRect.top > innerHeight){ root.classList.remove('play'); if (focus) setFocus(null); }
+  }), { threshold:0, rootMargin:'0px 0px -8px 0px' });
   io.observe(root);
   onDispose('org', () => io.disconnect());
 
@@ -1266,7 +1304,7 @@ function counters(){
   every('count', REPLAY_MS, () => {
     if (document.hidden) return;
     const heroOn = hero && hero.getBoundingClientRect().bottom > innerHeight * .35 && hero.getBoundingClientRect().top < innerHeight * .5;
-    if (heroOn) playHero();                        // 含 .hero-stats 的揭示；數字由下面重滾
+    if (heroOn) playHero(true);                    // 只重跑重音，不把內容清空
     inview.forEach(el => countUp(el, +el.dataset.i * 140));
     // 角標掃光：每輪重播時卡片依序閃一道（不是整片閃爍，只有一道光）
     $$('.hcard').forEach((c, i) => { setTimeout(() => { c.classList.add('tick');
@@ -1931,7 +1969,7 @@ function bannerIntro(){
       sec.classList.remove('in');
       $$('.lane-tile', sec).forEach(t => t.style.removeProperty('--tin'));
     }
-  }), { threshold:.22 });
+  }), { threshold:0, rootMargin:'0px 0px -8px 0px' });
   io.observe(sec);
   onDispose('bIntro', () => io.disconnect());
 }

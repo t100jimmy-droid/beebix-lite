@@ -1934,7 +1934,7 @@ body{ transition:opacity .38s cubic-bezier(.22,.61,.36,1) }
 .lane.rush .lane-tile svg{ transform:scale(.92); transition:transform .18s var(--e) }
 .lane-tile svg{ transition:transform .38s var(--e-spring) }
 /* 蜜蜂落地的衝擊波 */
-.lane-tile.shock{ animation:tileShock .62s var(--e-spring) }
+.sec.banner .lane-tile.shock,.sec.banner.in .lane-tile.shock{ animation:tileShock .62s var(--e-spring) }
 @keyframes tileShock{ 0%{ transform:none } 26%{ transform:translateY(-11px) scale(1.04) } 100%{ transform:none } }
 
 /* 蜜蜂：定時跳一下（腳貼地才有重量，所以不吃捲動視差） */
@@ -2314,4 +2314,59 @@ body{ transition:opacity .38s cubic-bezier(.22,.61,.36,1) }
   .stat-tile[data-viz="dots"] .stat-marks{ height:30px }
   .mk--dot{ height:calc((30px - 6px) / 4) }
   .stats li .stat-legend{ margin-top:11px; line-height:1.45 }
+}
+
+/* ── 修正：≤1320px 時數據欄的黃線改在「上緣」（border-top），
+   但我加的充能線是「左側」直線，兩條同時存在會變成 L 形。
+   讓充能線跟著版面轉向，並把原本的靜態邊線關掉。 ── */
+.hero-stats{ border-left-color:rgba(255,199,0,.18) }
+@media (max-width:1320px){
+  .hero-stats{ border-top-color:rgba(255,199,0,.18) }
+  .hero-stats::before{ left:0; right:0; top:-3px; bottom:auto; width:auto; height:3px;
+    transform:scaleX(0); transform-origin:0 50% }
+  .hero-stats.in::before{ transform:scaleX(1) }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   保底：任何「靠 class 才看得見」的內容，都要有純 CSS 的回復路徑。
+   JS 正常時 .in / .play 會先接手，這幾條看不到；
+   JS 出任何意外時，2.6 秒後內容仍然會自己顯示，不會留下一片空白。
+   ═══════════════════════════════════════════════════════════════════════ */
+/* ⚠ 保底規則一定要用 :not() 圈住「還沒進場」的狀態。
+   先前寫成「data-reveal 加 in 時 animation:none」，它跟 .bolt-streak.in 的 boltFlash
+   同特異度而且在後面，把閃電的閃光、遙測面板的命中泛光都一起殺掉了。
+   保底只該在「進場還沒發生」時存在，不可以碰進場之後的任何動畫。 */
+[data-reveal]:not(.in){ animation:revealFailsafe .01s linear 2.6s forwards }
+@keyframes revealFailsafe{ to{ opacity:1; translate:none; transform:none } }
+.hairline[data-reveal]:not(.in){ animation:hairlineFailsafe .01s linear 2.6s forwards }
+@keyframes hairlineFailsafe{ to{ opacity:1; transform:scaleX(1) } }
+.org:not(.play) .org-node{ animation:nodeFailsafe .01s linear 2.8s forwards }
+@keyframes nodeFailsafe{ to{ opacity:1; transform:none } }
+.viz:not(.in) > *{ animation:vizChildFailsafe .01s linear 2.8s forwards }
+@keyframes vizChildFailsafe{ to{ opacity:1; translate:none } }
+.stat-tile:not(.play) .mk--dot{ animation:mkFailsafe .01s linear 3s forwards }
+@keyframes mkFailsafe{ to{ opacity:1; transform:none } }
+.eyebrow[data-reveal]:not(.in) > span{ animation:revealFailsafe .01s linear 2.6s forwards }
+@media (prefers-reduced-motion: reduce){
+  [data-reveal]:not(.in),.hairline[data-reveal]:not(.in),.org:not(.play) .org-node,
+  .viz:not(.in) > *,.stat-tile:not(.play) .mk--dot,.eyebrow[data-reveal]:not(.in) > span{ animation:none }
+}
+
+/* ── 首屏定時重播：只重跑重音，內容不消失 ── */
+.brand-plate.sheen::after{ animation:plateSheen .8s cubic-bezier(.22,.61,.36,1) .08s forwards }
+.hero-stats.charge::before{ animation:statsCharge .85s var(--e-out) }
+@keyframes statsCharge{ from{ transform:scaleY(0) } to{ transform:scaleY(1) } }
+@media (max-width:1320px){
+  @keyframes statsCharge{ from{ transform:scaleX(0) } to{ transform:scaleX(1) } }
+}
+@media (prefers-reduced-motion: reduce){
+  .brand-plate.sheen::after,.hero-stats.charge::before{ animation:none }
+}
+
+/* 數字滾完的「叮」一下：先前整段舊樣式被換掉時一起掉了 */
+.stats li.stat-tile > b.done,.hero-stats b.done,.org-facts li b.done{
+  animation:statSnap .34s cubic-bezier(.22,.61,.36,1) }
+@media (prefers-reduced-motion: reduce){
+  .stats li.stat-tile > b.done,.hero-stats b.done,.org-facts li b.done,
+  .sec.banner .lane-tile.shock,.sec.banner.in .lane-tile.shock{ animation:none }
 }

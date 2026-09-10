@@ -65,6 +65,8 @@
   const label = btn.querySelector('.bb-label');
   let last = null, timer = 0;
 
+  // 只放內容、不自動彈出：未接 repo 的提示原本會一直開著，把導覽列整片蓋掉
+  const setTip  = html => { tip.innerHTML = html; };
   const showTip = html => { tip.innerHTML = html; tip.classList.add('on'); };
   const hideTip = () => tip.classList.remove('on');
   btn.addEventListener('mouseenter', () => { if (tip.innerHTML) tip.classList.add('on'); });
@@ -78,7 +80,7 @@
     if (!s.remote) {
       btn.dataset.state = 'off'; btn.disabled = true;
       label.textContent = '未接 GitHub';
-      showTip(`<b>還沒接上 GitHub repo。</b>\n建好 repo 後執行：\ngit remote add origin &lt;repo 網址&gt;`);
+      setTip(`<b>還沒接上 GitHub repo。</b>\n建好 repo 後執行：\ngit remote add origin &lt;repo 網址&gt;`);
       return;
     }
     btn.disabled = false;
@@ -86,7 +88,7 @@
     if (s.state === 'pushing' || s.state === 'waiting') {
       btn.dataset.state = 'busy'; btn.disabled = true;
       label.textContent = s.state === 'pushing' ? '推送中…' : '等待生效…';
-      showTip(s.message || '');
+      setTip(s.message || '');
       return;
     }
     if (s.state === 'error') {
@@ -98,7 +100,7 @@
     if (s.state === 'done' && !s.dirty) {
       btn.dataset.state = 'done';
       label.textContent = '已上線';
-      showTip(`<b>已更新到線上</b>\n${site}\n${s.message || ''}`);
+      setTip(`<b>已更新到線上</b>\n${site}\n${s.message || ''}`);
       return;
     }
     if (s.dirty) {
