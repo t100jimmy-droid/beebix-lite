@@ -3,12 +3,15 @@
 iGaming 遊戲工作室形象首頁（單頁 demo）。純靜態，沒有建置步驟，
 所有美術為本站自製，未使用任何借用素材。
 
-**線上版：** https://t100jimmy-droid.github.io/beebix-landing/
+**線上版：** https://t100jimmy-droid.github.io/beebix-lite/
+
+> 這是 **精簡版**，與完整版 <https://t100jimmy-droid.github.io/beebix-landing/> 是各自獨立的兩個站，
+> 分別放在不同的 repo，互不影響。
 
 ## 本機預覽
 
 ```bash
-python3 tools/serve.py        # → http://localhost:5193/index.html
+python3 tools/serve.py 5194   # → http://localhost:5194/index.html
 ```
 
 這支伺服器做兩件內建 http.server 不做的事：

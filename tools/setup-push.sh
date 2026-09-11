@@ -9,14 +9,14 @@
 # ══════════════════════════════════════════════════════════════
 set -uo pipefail
 
-REPO="$HOME/beebix-landing"
+REPO="$HOME/beebix-lite"
 USER_NAME="t100jimmy-droid"
 
 cd "$REPO" || { echo "❌ 找不到 $REPO"; exit 1; }
 
 printf '\n\033[1mBeeBix → GitHub 一次性設定\033[0m\n'
-printf '  目標 repo : %s/beebix-landing\n' "$USER_NAME"
-printf '  上線網址  : https://%s.github.io/beebix-landing/\n\n' "$USER_NAME"
+printf '  目標 repo : %s/beebix-lite\n' "$USER_NAME"
+printf '  上線網址  : https://%s.github.io/beebix-lite/\n\n' "$USER_NAME"
 
 # ── 1. 清掉舊的、沒有寫入權的憑證 ──────────────────────────
 printf '清除舊憑證… '
@@ -48,7 +48,7 @@ echo '完成'
 
 # ── 4. 設定遠端並推送 ──────────────────────────────────────
 git remote remove origin 2>/dev/null
-git remote add origin "https://github.com/$USER_NAME/beebix-landing.git"
+git remote add origin "https://github.com/$USER_NAME/beebix-lite.git"
 
 printf '\n推送 main… \n'
 if ! GIT_TERMINAL_PROMPT=0 git push -u origin main 2>&1 | sed 's/^/    /'; then
