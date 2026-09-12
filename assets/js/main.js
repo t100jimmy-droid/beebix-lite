@@ -73,6 +73,8 @@ const applyI18n = () => {
   if (cur) cur.textContent = meta ? meta.short : LANG.toUpperCase();
   $$('.lang-menu button').forEach(b =>
     b.setAttribute('aria-selected', String(b.dataset.lang === LANG)));
+  $$('.nav-lang-btns button').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.lang === LANG)));
   const tt = $('.to-top'); if (tt) tt.setAttribute('aria-label', t('ui.toTop'));
   const bg = $('.burger');  if (bg) bg.setAttribute('aria-label', t('ui.menu'));
   const cx = $('.cm-x');    if (cx) cx.setAttribute('aria-label', t('cm.close'));
@@ -125,6 +127,25 @@ function langSwitcher(){
   });
   addEventListener('click', close);
   addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+
+  /* ≤1024px 時 .lang 被 display:none，手機使用者完全找不到語言切換。
+     在漢堡抽屜底部補一列，跟桌機下拉共用同一份 LANGS 與 setLang。 */
+  const row = $('.nav-lang-btns');
+  if (row){
+    const paint = () => {
+      row.innerHTML = LANGS.map(l =>
+        `<button type="button" data-lang="${l.code}" lang="${l.htmlLang}"
+                 aria-pressed="${l.code === LANG}">${l.short}</button>`).join('');
+    };
+    paint();
+    row.addEventListener('click', e => {
+      const b = e.target.closest('button[data-lang]');
+      if (!b) return;
+      setLang(b.dataset.lang);
+      paint();
+    });
+    langSwitcher.repaint = paint;
+  }
 }
 
 /* ═════ 1 · 導覽列（隱藏／展開／scrollspy）═════ */
@@ -146,22 +167,80 @@ function nav(){
     }
   });
 
-  $('.burger').addEventListener('click', () => document.body.classList.toggle('nav-open'));
-  $$('.nav-links a').forEach(a => a.addEventListener('click', () => document.body.classList.remove('nav-open')));
+  /* 抽屜打開要鎖住背景捲動，否則選單會浮在一直跑的內容上面 */
+  let lockY = 0;
+  const setNav = open => {
+    const was = document.body.classList.contains('nav-open');
+    if (open === was) return;
+    if (open){
+      lockY = scrollY;
+      document.body.classList.add('nav-open');
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${lockY}px`;
+      document.body.style.width = '100%';
+    } else {
+      document.body.classList.remove('nav-open');
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      scrollTo(0, lockY);
+    }
+    $('.burger').setAttribute('aria-expanded', String(open));
+  };
+  // 遮罩層：點它關選單，也讓抽屜後面的內容確實被壓暗
+  const scrim = document.createElement('div');
+  scrim.className = 'nav-scrim';
+  scrim.addEventListener('click', () => setNav(false));
+  document.body.appendChild(scrim);
+  const burger = $('.burger');
+  burger.setAttribute('aria-expanded', 'false');
+  burger.setAttribute('aria-controls', 'navLinks');
+  burger.addEventListener('click', () => setNav(!document.body.classList.contains('nav-open')));
+  addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('nav-open')){ setNav(false); burger.focus(); } });
+  $$('.nav-links a').forEach(a => a.addEventListener('click', () => setNav(false)));
 
-  $$('.has-menu > button').forEach(b => b.addEventListener('click', () => {
-    if (innerWidth > 1024) return;
-    const open = b.getAttribute('aria-expanded') === 'true';
-    b.setAttribute('aria-expanded', String(!open));
-    b.parentElement.classList.toggle('open', !open);
-  }));
+  /* 原本桌機直接 return，只靠 CSS :hover 開下拉 → 鍵盤使用者永遠到不了 7 個子連結。
+     現在桌機也能用 Enter/Space 開合，開著時才把子項放進焦點順序。 */
+  const menus = $$('.has-menu');
+  const setMenu = (li, open) => {
+    li.classList.toggle('open', open);
+    $('button', li).setAttribute('aria-expanded', String(open));
+    $$('.submenu a', li).forEach(a => a.tabIndex = open ? 0 : -1);
+  };
+  menus.forEach(li => {
+    const b = $('button', li);
+    setMenu(li, false);
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      const open = b.getAttribute('aria-expanded') === 'true';
+      menus.forEach(o => { if (o !== li) setMenu(o, false); });
+      setMenu(li, !open);
+    });
+    // 滑鼠移開就收起，但別把鍵盤開的那個收掉
+    li.addEventListener('pointerleave', () => { if (!li.contains(document.activeElement)) setMenu(li, false); });
+    li.addEventListener('focusout', () => setTimeout(() => {
+      if (!li.contains(document.activeElement)) setMenu(li, false);
+    }, 0));
+  });
+  addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const open = menus.find(li => li.classList.contains('open'));
+    if (open){ setMenu(open, false); $('button', open).focus(); }
+  });
+  document.addEventListener('click', e => {
+    if (e.target.closest('.has-menu')) return;
+    menus.forEach(li => setMenu(li, false));
+  });
 
   const HEADER_GAP = 96;                       // 固定導覽列高度 + 呼吸空間
   document.addEventListener('click', e => {
     const a = e.target.closest('a[href^="#"]');
     if (!a) return;
     const id = a.getAttribute('href');
-    if (id === '#'){ e.preventDefault(); return; }   // 佔位連結：不要跳回頁頂
+    if (id === '#'){ e.preventDefault(); return; }   // 佔位連結：不要跳回頂
+    // 子選單的 Slots / Live / Instant / Rewards 要切到對應方案，否則四個點下去畫面一樣
+    const oi = a.dataset.offer;
+    if (oi != null && offerShow) setTimeout(() => offerShow(+oi), 260);
     const t = $(id);
     if (!t) return;
     e.preventDefault();
@@ -435,7 +514,7 @@ function hero(){
   const viewport = $('#heroCards');
   if (!viewport) return;
 
-  const card = g => `
+  const card = (g, i) => `
     <a class="hcard" href="${linkFor(g.t)}"${dataFor(g.t)} aria-label="${g.t}">
       <div class="hcard-media spot">
         <img class="bg" src="${g.bg}" alt="" loading="eager" decoding="async" fetchpriority="low">

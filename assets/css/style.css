@@ -852,8 +852,9 @@ body.nav-open .burger span:nth-child(3){top:21px;transform:rotate(-45deg)}
 /* ── 頁面載入淡入 ─────────────────────────────────────── */
 /* 保底：JS 沒跑起來時，純 CSS 動畫仍會在 2.5s 後把畫面顯示出來，
    避免任何 JS 例外造成整頁全白。JS 正常時 .ready 會取消動畫，行為不變。 */
-body{ opacity:0; transition:opacity .5s ease; animation:bodyReveal .5s ease 2.5s forwards }
-body.ready{ opacity:1; animation:none }
+/* body 的 opacity 閘門已移除：臨界樣式現在會先畫，不需要整頁淡入 */
+body{ opacity:1 }
+body.ready{ opacity:1 }
 @keyframes bodyReveal{ to{ opacity:1 } }
 
 /* ── 拖曳提示 ─────────────────────────────────────────── */
@@ -2369,4 +2370,61 @@ body{ transition:opacity .38s cubic-bezier(.22,.61,.36,1) }
 @media (prefers-reduced-motion: reduce){
   .stats li.stat-tile > b.done,.hero-stats b.done,.org-facts li b.done,
   .sec.banner .lane-tile.shock,.sec.banner.in .lane-tile.shock{ animation:none }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Lite v4 · 九條嚴重問題的修正（2026-09-12）
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ① 桌機下拉改由 .open 控制，鍵盤才打得開（原本只有 :hover） */
+.has-menu.open .submenu{ opacity:1; visibility:visible; transform:none }
+.has-menu.open .submenu a{ opacity:1; translate:none }
+.has-menu.open .chev{ transform:rotate(180deg) }
+.submenu a:focus-visible{ outline:2px solid var(--a-primary); outline-offset:-2px; border-radius:8px }
+
+/* ② 首屏卡片的焦點框被卡面圖蓋掉 97%（outline-offset 是負值、又在圖層下方）
+   → 改用畫在最上層的偽元素，永遠看得見 */
+.hcard:focus-visible{ outline:none }
+.hcard:focus-visible::after{
+  content:''; position:absolute; inset:-4px; z-index:20; pointer-events:none;
+  border:3px solid var(--a-primary); border-radius:18px;
+  box-shadow:0 0 0 3px rgba(11,11,12,.85), 0 0 22px rgba(255,199,0,.6) }
+.hcard{ position:relative }
+.hero-cards{ overflow:visible }
+.hero-cards-run{ padding-block:6px }
+
+/* ③ 手機抽屜半透明，首屏的蜂子與黃色 logo 板整片透出來 → 改成幾乎不透明，並補遮罩 */
+@media (max-width:1024px){
+  body.nav-open .nav-links{
+    background:rgba(15,16,19,.97);
+    -webkit-backdrop-filter:blur(26px); backdrop-filter:blur(26px);
+    box-shadow:0 30px 70px rgba(0,0,0,.7); max-height:calc(100svh - 112px); overflow-y:auto }
+  .nav-scrim{ position:fixed; inset:0; z-index:94; background:rgba(0,0,0,.66);
+    -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px);
+    opacity:0; visibility:hidden; transition:opacity .26s var(--e), visibility .26s }
+  body.nav-open .nav-scrim{ opacity:1; visibility:visible }
+  /* ④ 打開後漢堡變成一顆純黃圓餅，關閉用的 X 完全看不見 */
+  body.nav-open .burger{ background:var(--s-card); border:1px solid var(--a-primary) }
+  body.nav-open .burger span{ background:var(--a-primary) }
+  /* ⑤ 抽屜底部的語言列（≤1024px 原本完全沒有語言切換入口） */
+  .nav-lang-row{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+    margin-top:10px; padding:14px 14px 4px; border-top:1px solid var(--b-subtle) }
+  .nav-lang-row .nll{ font-family:var(--ff-c); font-size:13px; color:var(--t-muted) }
+  .nav-lang-btns{ display:flex; gap:8px }
+  .nav-lang-btns button{ min-width:52px; min-height:40px; padding:0 14px; border-radius:10px;
+    border:1px solid var(--b-subtle); background:var(--s-card); color:var(--t-muted);
+    font-family:var(--ff-b); font-weight:600; font-size:14px; transition:.25s var(--e) }
+  .nav-lang-btns button[aria-pressed="true"]{ background:var(--a-primary); color:var(--t-on-accent); border-color:var(--a-primary) }
+  .nav-lang-btns button:focus-visible{ outline:2px solid var(--a-primary); outline-offset:2px }
+}
+@media (min-width:1025px){ .nav-lang-row{ display:none } .nav-scrim{ display:none } }
+
+/* ⑥ JS 沒跑起來時，標頭與進度條不能永遠停在隱藏狀態（body.ready 才顯示） */
+.site-header{ animation:headerFailsafe .5s ease 2.2s forwards }
+@keyframes headerFailsafe{ to{ transform:none; opacity:1 } }
+body.ready .site-header{ animation:none }
+
+@media (prefers-reduced-motion: reduce){
+  .nav-scrim{ transition:none }
+  .hcard:focus-visible::after{ box-shadow:0 0 0 3px rgba(11,11,12,.85) }
 }
