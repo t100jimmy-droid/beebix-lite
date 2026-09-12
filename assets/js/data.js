@@ -184,7 +184,7 @@ const STATS = [
   { n:1000, suffix:'+', label:'why.s1', cap:'why.s1c', hero:true,
     viz:'trend',   legend:'why.v1', trend:[26,33,39,48,58,70,84,100] },
   { n:40,   suffix:'+', label:'why.s2', cap:'why.s2c',
-    viz:'dots',    legend:'why.v2', total:40, mark:12 },
+    viz:'dots',    legend:'why.v2', total:40, mark:4 },
   { n:150,  suffix:'+', label:'why.s3', cap:'why.s3c',
     viz:'split',   legend:'why.v3', parts:[118, 32] },
   { n:300,  suffix:'+', label:'why.s4', cap:'why.s4c',

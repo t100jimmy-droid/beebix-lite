@@ -237,14 +237,19 @@ function nav(){
     const a = e.target.closest('a[href^="#"]');
     if (!a) return;
     const id = a.getAttribute('href');
-    if (id === '#'){ e.preventDefault(); return; }   // 佔位連結：不要跳回頂
-    // 子選單的 Slots / Live / Instant / Rewards 要切到對應方案，否則四個點下去畫面一樣
-    const oi = a.dataset.offer;
-    if (oi != null && offerShow) setTimeout(() => offerShow(+oi), 260);
-    const t = $(id);
-    if (!t) return;
+    if (id === '#'){
+      e.preventDefault();
+      if (a.dataset.nolink != null){            // 明確告知「尚未開放」，而不是點了沒事
+        a.classList.remove('is-soon'); void a.offsetWidth; a.classList.add('is-soon');
+        a.setAttribute('data-soon', t('ui.soon'));
+        setTimeout(() => a.classList.remove('is-soon'), 2200);
+      }
+      return;
+    }
+    const target = $(id);          // 不能叫 t：會遮蔽模組層的翻譯函式 t()
+    if (!target) return;
     e.preventDefault();
-    scrollTo({ top: t.getBoundingClientRect().top + scrollY - HEADER_GAP, behavior: REDUCED ? 'auto' : 'smooth' });
+    scrollTo({ top: target.getBoundingClientRect().top + scrollY - HEADER_GAP, behavior: REDUCED ? 'auto' : 'smooth' });
     if (location.hash !== id) history.pushState(null, '', id);   // 讓上一頁／分享網址有意義
     // 深連結：捲到區塊後，把對應的卡片／方案帶到前面
     if (a.dataset.arc   !== undefined) arcGoTo(+a.dataset.arc);
@@ -252,8 +257,8 @@ function nav(){
   });
   // 用上一頁／下一頁回到某個 hash 時也對齊到導覽列下方
   addEventListener('popstate', () => {
-    const t = location.hash && $(location.hash);
-    if (t) scrollTo({ top: t.getBoundingClientRect().top + scrollY - HEADER_GAP, behavior:'auto' });
+    const h = location.hash && $(location.hash);
+    if (h) scrollTo({ top: h.getBoundingClientRect().top + scrollY - HEADER_GAP, behavior:'auto' });
   });
   addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
@@ -490,7 +495,9 @@ function heroChoreo(){
 function marquees(){
   const anims = [];
   $$('.marquee-run').forEach(run => {
-    run.innerHTML += run.innerHTML;                 // 複製一份 → translateX(-50%) 無縫
+    // 複製一份 → translateX(-50%) 無縫。複製件標 aria-hidden，否則讀屏會把整份清單唸兩遍。
+    const dup = run.cloneNode(true);
+    [...dup.children].forEach(n => { n.setAttribute('aria-hidden', 'true'); run.appendChild(n); });
     if (REDUCED) return;
     anims.push(run.animate(
       [{ transform:'translateX(0)' }, { transform:'translateX(-50%)' }],
@@ -530,7 +537,9 @@ function hero(){
   const run = document.createElement('div');
   run.className = 'hero-cards-run';
   const html = HERO.map(card).join('');
-  run.innerHTML = html + html;
+  run.innerHTML = html;
+  const dup = run.cloneNode(true);          // 複製件不進焦點順序，也不被讀屏唸第二遍
+  [...dup.children].forEach(n => { n.setAttribute('aria-hidden', 'true'); n.tabIndex = -1; run.appendChild(n); });
   viewport.replaceChildren(run);
 
   if (REDUCED) return;
@@ -988,7 +997,7 @@ const burstOn = (el, ax, ay, opts) => {
 /* ═════ 9b · 成績單：品質儀表 + 數據火花圖 ═════
    儀表是分段條（24 格），格數＝分數；點一根支柱展開說明，閒置時自動巡覽下一根。
    數字磚在進場時同時跑「數字滾動 + 近八季走勢長條」，滑過再顯示註腳。 */
-const SEG = 24;
+const SEG = 50;   // 24 格時 96% 與 94% 都四捨五入成 23 格，兩條長得一樣；50 格才分得出來
 /* 四種編碼各自的標記列。視覺語言統一是「一排方塊」，只有含義不同。 */
 const vizMarks = st => {
   if (st.viz === 'trend')
@@ -1220,7 +1229,7 @@ function orgChart(){
   depts.forEach(dept => {
     const head = $('.org-node--head', dept);
     listen('org', head, 'click', () => {
-      if (ORG_DESK.matches){ setFocus(focus === dept.dataset.k ? null : dept.dataset.k); holdUntil = performance.now() + 9000; }
+      if (ORG_DESK.matches){ setFocus(dept.dataset.k); holdUntil = performance.now() + 9000; }
       else { const open = dept.classList.toggle('open'); head.setAttribute('aria-expanded', String(open)); }
     });
   });
@@ -1243,8 +1252,10 @@ function orgChart(){
      改成：只要碰到視窗就播；只有「完全捲到視窗下方」才重置以便重播。 */
   const io = new IntersectionObserver(es => es.forEach(e => {
     inView = e.isIntersecting;
-    if (inView){ drawLines(); requestAnimationFrame(() => root.classList.add('play')); }
-    else if (e.boundingClientRect.top > innerHeight){ root.classList.remove('play'); if (focus) setFocus(null); }
+    if (inView){ drawLines(); requestAnimationFrame(() => root.classList.add('play'));
+      if (!focus && ORG_DESK.matches) setFocus(ORG.depts[0].k); }   // 回到視窗時自己醒過來
+    // 不要在離場時清掉 focus：原本捲離再回來會變成四個部門全收起、閒置巡覽也不再啟動
+    else if (e.boundingClientRect.top > innerHeight){ root.classList.remove('play'); }
   }), { threshold:0, rootMargin:'0px 0px -8px 0px' });
   io.observe(root);
   onDispose('org', () => io.disconnect());
@@ -1258,7 +1269,9 @@ function orgChart(){
 }
 
 /* ═════ 10a · 聯絡彈窗：行動型連結一律開這裡；區塊導覽不受影響 ═════ */
-const CM_TRIGGER = '.btn, .btn-ghost, a[href^="mailto:"], a[href="#"], .hcard, .gcard.is-active';
+/* 法務與社群連結不該開業務洽談彈窗：前者要的是條款，後者要的是社群頁。
+   兩者都還沒有實際頁面，所以標成 data-nolink，點擊改成明確的「尚未開放」提示。 */
+const CM_TRIGGER = '.btn, .btn-ghost, a[href^="mailto:"], a[href="#"]:not([data-nolink]), .hcard, .gcard.is-active';
 const CM_ICON = {
   email:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 7l9 6 9-6"/></svg>',
   tg:   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4L3 11l6 2.5L11 20l3-4 5 3z"/><path d="M9 13.5l10-8"/></svg>',
@@ -1928,11 +1941,12 @@ function aboutViz(){
     while (hits.length && hits[0].t < cut) hits.shift();
     emoPeak = Math.max(Math.abs(B.x), emoPeak * 0.985);   // 情緒峰值：慢慢回落的包絡
     // 波動＝彈跳球速度的平滑包絡（原本直接寫瞬時高度，所以在 5%↔89% 之間亂跳）
-    volEnv = lerp(volEnv, clamp(Math.abs(A.v) / 2.6, 0, 1), 1 - Math.exp(-dt / 0.7));
+    volEnv = lerp(volEnv, clamp(Math.abs(A.v) / 2.6, 0, 1), 1 - Math.exp(-dt / 1.6));
     if (fixedDt == null && (clock - (step.lastRead || 0)) > 240){
       step.lastRead = clock;
       const emo = Math.min(1, emoPeak);
-      setText(rd.hit, String(hitCount % 100).padStart(2, '0'), Math.min(1, (hitCount % 100) / 24));
+      // 顯示「目前軌跡上看得到的命中數」，數字才跟畫面上的點對得起來（原本是無上限累加器）
+      setText(rd.hit, String(hits.length).padStart(2, '0'), Math.min(1, hits.length / 8));
       // 情緒峰值只在真的刷新高點時才跳動與強調
       if (Math.round(emo * 100) > emoShown + 2){ emoShown = Math.round(emo * 100); flash(rd.emo); }
       else emoShown = Math.max(0, emoShown - 1);
@@ -1976,7 +1990,7 @@ function aboutViz(){
   };
   const prime = () => { if (!primed && W > 0){ primed = true; preroll();
     if (REDUCED){ draw(clock);
-      setText(rd.hit, String(hitCount % 100).padStart(2, '0'), .5);
+      setText(rd.hit, String(hits.length).padStart(2, '0'), Math.min(1, hits.length / 8));
       setText(rd.emo, Math.round(Math.min(1, emoPeak) * 100) + '%', Math.min(1, emoPeak));
       setText(rd.vol, Math.round(volEnv * 100) + '%', volEnv); } } };
   const loop = now => {

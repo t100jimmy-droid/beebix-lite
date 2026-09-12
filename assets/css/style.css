@@ -1672,7 +1672,10 @@ body{ transition:opacity .38s cubic-bezier(.22,.61,.36,1) }
 .brand-plate::after{ content:''; position:absolute; inset:0; pointer-events:none;
   background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.5) 50%,transparent 60%); transform:translateX(-135%) }
 .brand-plate.in::after,.brand-plate:hover::after{ animation:plateSheen .78s cubic-bezier(.22,.61,.36,1) .22s forwards }
-@keyframes plateSheen{ to{ transform:translateX(135%) } }
+@keyframes plateSheen{
+  0%{ transform:translateX(-135%); opacity:1 }
+  96%{ transform:translateX(135%); opacity:1 }
+  100%{ transform:translateX(-135%); opacity:0 } }
 .brand-plate:hover{ transform:translateY(-4px) }
 .brand-plate:active{ transform:translateY(-1px) scale(.96); transition-duration:.1s }
 
@@ -2429,3 +2432,129 @@ body.ready .site-header{ animation:none }
   .nav-scrim{ transition:none }
   .hcard:focus-visible::after{ box-shadow:0 0 0 3px rgba(11,11,12,.85) }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Lite v5 · 剩餘 S3／S4 的修正（2026-09-12）
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* 跳至主內容：鍵盤原本要按 34 次 Tab 才碰得到第一個內容元素 */
+.skip-link{ position:fixed; left:50%; top:-80px; translate:-50% 0; z-index:200;
+  display:inline-flex; align-items:center; min-height:48px; padding:0 24px;
+  border-radius:0 0 14px 14px; background:var(--a-primary); color:var(--t-on-accent);
+  font-family:var(--ff-b); font-weight:700; font-size:15px;
+  transition:top .24s var(--e-out) }
+.skip-link:focus{ top:0 }
+.skip-link:focus-visible{ outline:3px solid var(--wht); outline-offset:-6px }
+
+/* 尚未開放的連結：點下去要有明確回饋，不能靜默無事 */
+[data-nolink]{ position:relative }
+[data-nolink].is-soon::after{
+  content:attr(data-soon); position:absolute; left:50%; bottom:calc(100% + 8px); translate:-50% 0;
+  z-index:60; white-space:nowrap; padding:7px 12px; border-radius:9px;
+  background:var(--s-card); border:1px solid rgba(255,199,0,.5); color:var(--a-primary);
+  font-family:var(--ff-c); font-size:12px; pointer-events:none;
+  animation:soonTip 2.2s var(--e-out) both }
+@keyframes soonTip{ 0%{opacity:0; translate:-50% 6px} 12%,78%{opacity:1; translate:-50% 0} 100%{opacity:0; translate:-50% -4px} }
+
+/* 觸控命中區：頁尾與抽屜有 22 個可點元素小於 44px */
+.f-col a,.f-links a,.f-soc{ display:inline-flex; align-items:center; min-height:44px }
+.f-links a{ padding-inline:2px }
+.f-soc{ padding-inline:2px }
+@media (max-width:720px){
+  .nav-links a,.nav-links button,.submenu a{ min-height:48px }
+  .offer-list button{ min-height:56px }
+  .lang-menu button{ min-height:46px }
+}
+
+/* 字級下限：多處 9.5–11px 在手機上要湊近才看得到 */
+@media (max-width:720px){
+  .viz-legend,.viz-reads span,.stat-legend,.org-role,.sc-m,.lane-tile span,
+  .hero-stats span,.f-col a,.f-links,.foot-legal{ font-size:12px }
+  .org-dept-label,.ol-soon,.oc-soon{ font-size:11.5px }
+}
+
+/* 方案卡：白字壓在宙斯的白鬍子白袍上，對比只有 1.7:1 */
+.oc-veil{ background:linear-gradient(180deg,transparent 26%,rgba(8,8,10,.55) 52%,rgba(8,8,10,.94) 78%) }
+.oc-body{ text-shadow:0 2px 12px rgba(0,0,0,.85) }
+.oc-body p{ color:#fff }
+
+/* 首屏品牌板被蜜蜂的拳頭壓住 logo 尾巴 → 板子提到蜜蜂之上 */
+.brand-plate{ position:relative; z-index:4 }
+
+/* 聯絡區的區塊標籤被蜂巢鋸齒吃掉 */
+.cta .shell{ position:relative; z-index:4 }
+.cta .eyebrow{ position:relative; z-index:4 }
+
+/* 回到頂端浮鈕壓住內容 → 往內縮並讓出捲軸 */
+@media (max-width:720px){ .to-top{ right:16px; bottom:16px; width:46px; height:46px } }
+
+/* JS 掛掉時，組織圖與成績單會是兩個空洞 → 純 CSS 保底把容器的最小高度撐住並給提示 */
+#orgChart:empty, #statsList:empty, #proofList:empty, #offerList:empty{ min-height:120px; position:relative }
+#orgChart:empty::after, #statsList:empty::after, #proofList:empty::after, #offerList:empty::after{
+  content:''; position:absolute; inset:0; border-radius:16px;
+  background:repeating-linear-gradient(115deg, rgba(255,255,255,.03) 0 14px, transparent 14px 28px);
+  border:1px dashed var(--b-subtle) }
+
+@media (prefers-reduced-motion: reduce){
+  .skip-link{ transition:none }
+  [data-nolink].is-soon::after{ animation:none; opacity:1 }
+}
+
+/* 手機命中區與字級的收尾（黑盒掃描抓到的殘留） */
+@media (max-width:1024px){
+  .nav-logo{ display:inline-flex; align-items:center; min-height:44px }
+  .burger{ width:46px; height:46px }
+}
+@media (max-width:720px){
+  .cta-info a{ display:inline-flex; align-items:center; min-height:44px }
+  /* 字級下限 11.5px：這些是黑盒掃描逐一點出來的 */
+  .hcard-tag,.hcard-soon,.soon-tile .d,.soon-tile .n,.offer-list .n,.sc-n,
+  .score-head span,.score-live b,.org-hex b,.stat-legend,.f-18,.viz-head,
+  .eyebrow,.sec-label,.drag-hint,.cm-row .cm-k{ font-size:11.5px }
+  :root[data-lang="zh"] .stat-legend,:root[data-lang="th"] .stat-legend{ font-size:11.5px }
+  .lane-tile span{ font-size:11.5px }
+  :root[data-lang="zh"] .lane-tile span,:root[data-lang="th"] .lane-tile span{ font-size:11.5px }
+}
+
+/* 上一段有幾條被更高特異度的規則壓過，這裡用對等以上的選擇器補齊 */
+@media (max-width:1024px){ .nav-pill .nav-logo{ min-height:46px } }
+@media (max-width:720px){
+  .stats li .stat-legend,
+  :root[data-lang="zh"] .stats li .stat-legend,
+  :root[data-lang="th"] .stats li .stat-legend{ font-size:11.5px; letter-spacing:.01em }
+  .org-node--member .org-hex b,.org-node--head .org-hex b,.org-node--root .org-hex b{ font-size:11.5px }
+  .cta-info span,.cta-info b{ font-size:11.5px }
+  .viz-reads span,.viz-legend,.viz-legend .vg span{ font-size:11.5px }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Lite v6 · 版面與韌性收尾
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* 區塊接縫的黑帶：最嚴重處佔滿三分之一螢幕。把各區上下留白收一階。 */
+.statement,.offer,.why{ padding:92px 0 100px }
+.studios{ padding:92px 0 100px }
+.soon{ padding-block:92px }
+.cta{ min-height:auto; padding:84px 0 68px }
+@media (max-width:1024px){
+  .statement,.offer,.why,.studios{ padding:80px 0 88px }
+  .soon{ padding-block:80px }
+}
+
+/* 首屏沒有任何可按的行動點：黃色品牌板看起來像按鈕卻沒有字。
+   給它一句明確的行動標籤（在 logo 下方，不動原本的視覺重量）。 */
+.brand-plate{ flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:14px 34px }
+.brand-plate img{ flex:0 0 auto; max-width:100% }
+.brand-plate .bp-cta{ font-family:var(--ff-m); font-weight:700; font-size:10.5px;
+  letter-spacing:.14em; text-transform:uppercase; color:rgba(11,11,12,.72) }
+:root[data-lang="zh"] .brand-plate .bp-cta,
+:root[data-lang="th"] .brand-plate .bp-cta{ font-family:var(--ff-c); font-size:12px; letter-spacing:.02em; text-transform:none }
+@media (max-width:720px){ .brand-plate{ padding:12px 26px } .brand-plate .bp-cta{ font-size:11.5px } }
+
+/* 圖片還沒到的期間是一片純色空框 → 給個低調的載入底紋 */
+.hcard-media,.soon-tile,.offer-card,.studios-card{ background-color:var(--ink-2);
+  background-image:repeating-linear-gradient(115deg, rgba(255,255,255,.025) 0 12px, transparent 12px 24px) }
+img{ background-color:transparent }
+
+/* 方案清單點了之後，結果面板在畫面外 70px → 桌機把兩欄頂端對齊 */
+@media (min-width:1025px){ .offer-grid{ align-items:start } .offer-card{ position:sticky; top:110px } }

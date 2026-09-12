@@ -11,10 +11,10 @@
 <!-- 第三方字型樣式表原本是渲染阻擋資源：慢速網路上瀏覽器要等它跑完
      DNS→TLS→下載才肯畫第一個像素。改成非阻擋，字型用 display=swap 先用系統字頂著。 -->
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,200..800&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Noto+Sans+TC:wght@400;500&family=Noto+Sans+Thai:wght@400;500;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
-<link rel="preload" as="style" href="assets/css/tokens.css?v=97" onload="this.onload=null;this.rel='stylesheet'">
+<link rel="preload" as="style" href="assets/css/tokens.css?v=105" onload="this.onload=null;this.rel='stylesheet'">
 <noscript>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,200..800&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Noto+Sans+TC:wght@400;500&family=Noto+Sans+Thai:wght@400;500;700&display=swap">
-  <link rel="stylesheet" href="assets/css/tokens.css?v=97">
+  <link rel="stylesheet" href="assets/css/tokens.css?v=105">
 </noscript>
 <!-- 首屏臨界樣式內嵌：style.css 有 152KB，在慢速網路上是渲染阻擋資源，
      不內嵌的話瀏覽器要等它下載完才肯畫第一個像素（實測 Slow 3G 全黑 17.5 秒）。 -->
@@ -107,10 +107,11 @@
     .hero-cards{height:272px}
   }
 </style>
-<link rel="preload" href="assets/css/style.css?v=97" as="style" onload="this.onload=null;this.rel='stylesheet'">
-<noscript><link rel="stylesheet" href="assets/css/style.css?v=97"></noscript>
+<link rel="preload" href="assets/css/style.css?v=105" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="assets/css/style.css?v=105"></noscript>
 </head>
 <body>
+<a class="skip-link" href="#top" data-i18n="ui.skip">Skip to content</a>
 
 <!-- ═══════════ 01 · NAV ═══════════ -->
 <header class="site-header" id="header">
@@ -175,8 +176,9 @@
         <span class="l1" data-i18n="hero.title1">WIRED</span>
         <span class="l2" data-i18n="hero.title2">TO WIN</span>
       </h1>
-      <a class="brand-plate" href="#about" aria-label="BeeBix">
+      <a class="brand-plate" href="#contact">
         <img src="assets/logo/03_mono_black.svg" alt="BeeBix">
+        <span class="bp-cta" data-i18n="hero.cta">Talk to us</span>
       </a>
     </div>
 
@@ -418,16 +420,16 @@
       <div class="f-brand">
         <img class="f-logo" src="assets/logo/02_mono_white.svg" alt="BeeBix">
         <p class="f-legal" data-i18n="foot.legal">本网站仅供展示用途，不提供任何真实金钱博弈服务。</p>
-        <p class="f-links"><a href="#" data-i18n="foot.privacy">Privacy Policy</a> · <a href="#" data-i18n="foot.terms">Terms of Use</a></p>
+        <p class="f-links"><a href="#" data-nolink data-i18n="foot.privacy">Privacy Policy</a> · <a href="#" data-nolink data-i18n="foot.terms">Terms of Use</a></p>
         <p class="f-copy" data-i18n="foot.copy">© 2026 BeeBix. All rights reserved.</p>
         <span class="f-18">18+</span>
       </div>
       <div class="f-col"><h4>BeeBix</h4><a href="#top" data-i18n="foot.home">Home</a><a href="#why" data-i18n="nav.about">About</a><a href="#studios" data-i18n="nav.studios">Studios</a><a href="#offer" data-offer="3" data-i18n="nav.rewards">Rewards</a><a href="#soon" data-i18n="nav.news">News</a><a href="#contact" data-i18n="nav.partner">Partner Hub</a></div>
       <div class="f-col"><h4 data-i18n="nav.games">Games</h4><a href="#offer" data-i18n="foot.overview">Overview</a><a href="#offer" data-offer="0" data-i18n="nav.slots">Slots</a><a href="#offer" data-offer="1" data-i18n="nav.live">Live Casino</a><a href="#offer" data-offer="2" data-i18n="nav.instant">Instant &amp; Crash</a><a href="#offer" data-i18n="foot.jackpot">Jackpot Network</a></div>
       <div class="f-col"><h4 data-i18n="foot.follow">Follow Us</h4>
-        <a href="#" class="f-soc">Instagram <i class="dot"></i></a>
-        <a href="#" class="f-soc">LinkedIn <i class="dot"></i></a>
-        <a href="#" class="f-soc">Telegram <i class="dot"></i></a>
+        <a href="#" class="f-soc" data-nolink aria-label="Instagram">Instagram <i class="dot"></i></a>
+        <a href="#" class="f-soc" data-nolink aria-label="LinkedIn">LinkedIn <i class="dot"></i></a>
+        <a href="#" class="f-soc" data-nolink aria-label="Telegram">Telegram <i class="dot"></i></a>
       </div>
     </div>
   </div>
@@ -446,8 +448,8 @@
   </div>
 </div>
 
-<script src="assets/js/i18n.js?v=97"></script>
-<script src="assets/js/data.js?v=97"></script>
-<script src="assets/js/main.js?v=97"></script>
+<script src="assets/js/i18n.js?v=105"></script>
+<script src="assets/js/data.js?v=105"></script>
+<script src="assets/js/main.js?v=105"></script>
 </body>
 </html>
