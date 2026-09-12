@@ -1676,8 +1676,9 @@ body{ transition:opacity .38s cubic-bezier(.22,.61,.36,1) }
 .brand-plate:hover{ transform:translateY(-4px) }
 .brand-plate:active{ transform:translateY(-1px) scale(.96); transition-duration:.1s }
 
-/* 數據欄：黃線由上往下充能，數字依序「叮」住 */
-.hero-stats{ position:relative }
+/* 數據欄：黃線由上往下充能，數字依序「叮」住。
+   ⚠ 這裡不能寫 position:relative —— 原本是 absolute right:0 靠在首屏右側，
+   改成 relative 會把整欄丟回文件流，桌機版面就垮了。absolute 本身已是定位上下文。 */
 .hero-stats::before{ content:''; position:absolute; left:-3px; top:0; bottom:0; width:3px;
   background:var(--a-primary); transform:scaleY(0); transform-origin:50% 0;
   transition:transform .75s var(--e-out) .1s }
