@@ -36,7 +36,7 @@ hr{border:0; margin:0}
 .center{text-align:center}
 
 /* 區塊底層：漸層 + 暖色環境光（對應 Figma Backdrop / Ambient）*/
-.sec{position:relative; overflow:hidden; background:var(--s-page)}
+.sec{position:relative; overflow:hidden; overflow:clip; display:flow-root; background:var(--s-page)}
 .sec > .shell{position:relative; z-index:3}
 .backdrop{position:absolute; inset:0; z-index:0; pointer-events:none}
 .backdrop--down{background:linear-gradient(180deg,#16171A,#08080A)}
@@ -567,7 +567,7 @@ body.nav-open .burger span:nth-child(3){top:21px;transform:rotate(-45deg)}
 .soon-run{display:grid; gap:26px; will-change:transform}
 
 /* 無卡片底、只有圖本身 */
-.soon-tile{display:grid; gap:11px; justify-items:center; text-align:center; cursor:pointer}
+.soon-tile{display:grid; gap:11px; justify-items:center; text-align:center}   /* 不是連結，不給手指游標 */
 .st-art{position:relative; width:100%; aspect-ratio:1; border-radius:18px; overflow:hidden;
   background:var(--ink-2);
   box-shadow:0 14px 34px rgba(0,0,0,.46);
@@ -2562,3 +2562,35 @@ img{ background-color:transparent }
 /* 1fr 的自動最小值是 min-content，長標題會把網格軌道撐出容器 → 一律用 minmax(0,1fr) */
 .head-row > *{ min-width:0 }
 .ghost{ overflow-wrap:break-word }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   捲動驅動視差（合成器層）
+   ─────────────────────────────────────────────────────────────────────
+   原本 parallax() 每幀為 5 個裝飾層讀 getBoundingClientRect 再寫樣式，
+   實測一次捲動 320–760 次強制回流，全部只為了裝飾。
+   view() 時間軸跑在合成器上，主執行緒一次都不用碰。
+   ⚠ CSS 與 JS 兩條路徑絕不能同時跑：JS 端用 CSS.supports 偵測後直接 return。
+   ═══════════════════════════════════════════════════════════════════════ */
+@keyframes plxTrack{ from{ translate:0 calc(var(--plx,0px) * -.5) }
+                     to  { translate:0 calc(var(--plx,0px) *  .5) } }
+@supports (animation-timeline: view()){
+  @media (prefers-reduced-motion: no-preference){
+    [data-parallax]{
+      animation:plxTrack both;
+      animation-timeline:view();
+      animation-range:cover 0% cover 100%;
+      /* 取代原本 lerp(.14) 的拖尾：先慢後追上，保留重量感 */
+      animation-timing-function:linear(0, .09 12%, .28 28%, .55 46%, .79 66%, .93 84%, 1);
+    }
+  }
+}
+.ring--l{ --plx:36px }   .ring--r{ --plx:-22px }  .viz-halo{ --plx:-14px }
+.marquee--banner{ --plx:64px }  .org-bg{ --plx:14px }  .sc-bg{ --plx:18px }
+
+/* 路線圖欄位的視差也交給捲動時間軸（transform 給軌道、translate 給視差） */
+@supports (animation-timeline: view()){
+  @media (prefers-reduced-motion: no-preference){
+    .soon-col{ animation:plxTrack both; animation-timeline:view(); animation-range:cover 0% cover 100%;
+      animation-timing-function:linear(0, .09 12%, .28 28%, .55 46%, .79 66%, .93 84%, 1) }
+  }
+}

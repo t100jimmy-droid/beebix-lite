@@ -11,6 +11,9 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp  = (a, b, t) => a + (b - a) * t;
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* 捲動驅動的 CSS 動畫跑在合成器上，主執行緒一次都不用碰。
+   支援時就讓 CSS 接手視差，JS 那條路徑直接關掉——兩條同時跑會互相蓋掉 translate。 */
+const SCROLL_CSS = !REDUCED && CSS.supports('animation-timeline', 'view()');
 const COARSE  = matchMedia('(pointer: coarse)').matches;
 const ARW = '<i class="card-arw"></i>';
 
@@ -510,7 +513,7 @@ function marquees(){
 
 
 /* 依標題決定卡片該去哪：輪播有 → 作品區並轉到那張；Offer 有 → 方案區並切到那項 */
-const linkFor = title => OFFER.some(o => o.t === title) ? '#offer' : '#offer';
+const linkFor = title => OFFER.some(o => o.t === title) ? '#offer' : '#soon';
 const dataFor = title => {
   const i = FEATURED.findIndex(g => g.t === title); if (i >= 0) return ` data-arc="${i}"`;
   const j = OFFER.findIndex(o => o.t === title);    if (j >= 0) return ` data-offer="${j}"`;
@@ -794,12 +797,13 @@ function soon(){
   if (REDUCED) return;
 
   /* 捲動視差（外層）*/
-  frame('soon', () => {
+  if (!SCROLL_CSS) frame('soon', () => {     // 支援捲動時間軸時交給 CSS，主執行緒不碰
     const r = sec.getBoundingClientRect();
     if (r.bottom < -200 || r.top > innerHeight + 200) return;
     const p = clamp((innerHeight - r.top) / (innerHeight + r.height), 0, 1) - .5;
     cols.forEach(c => { c.style.transform = `translate3d(0,${p * 90 * +c.dataset.sp}px,0)`; });
   });
+  else cols.forEach(c => c.style.setProperty('--plx', (90 * +c.dataset.sp) + 'px'));
 
   /* 無限直向輪播（內層）*/
   const runs = $$('.soon-run', host);
@@ -1269,9 +1273,10 @@ function orgChart(){
 }
 
 /* ═════ 10a · 聯絡彈窗：行動型連結一律開這裡；區塊導覽不受影響 ═════ */
-/* 法務與社群連結不該開業務洽談彈窗：前者要的是條款，後者要的是社群頁。
-   兩者都還沒有實際頁面，所以標成 data-nolink，點擊改成明確的「尚未開放」提示。 */
-const CM_TRIGGER = '.btn, .btn-ghost, a[href^="mailto:"], a[href="#"]:not([data-nolink]), .hcard, .gcard.is-active';
+/* 聯絡彈窗只留給「真的要聯絡」的入口：mailto 與明確標了 data-contact 的按鈕。
+   原本 .btn / .btn-ghost / .hcard 全都會觸發，結果是點任何按鈕、任何一張卡都彈窗。
+   其餘連結一律照自己的 href 行事（捲到該區塊），這比彈窗有用。 */
+const CM_TRIGGER = 'a[href^="mailto:"], [data-contact]';
 const CM_ICON = {
   email:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 7l9 6 9-6"/></svg>',
   tg:   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4L3 11l6 2.5L11 20l3-4 5 3z"/><path d="M9 13.5l10-8"/></svg>',
@@ -1406,6 +1411,7 @@ function counters(){
 
 /* ═════ 12 · 通用視差 ═════ */
 function parallax(){
+  if (SCROLL_CSS) return;                  // 交給 CSS 的 view() 時間軸
   const els = $$('[data-parallax]');
   if (!els.length || REDUCED) return;
   /* 讀 rect 與寫 style 必須分成兩批：交錯進行會讓每個元素各觸發一次強制回流。 */
@@ -2049,11 +2055,12 @@ function bannerIntro(){
   const stamp = () => {
     // 只排「此刻看得到」的磚，離場的磚不必浪費延遲
     $$('.lane', sec).forEach((lane, li) => {
-      const tiles = $$('.lane-tile', lane).filter(t => {
-        const r = t.getBoundingClientRect(); return r.right > 0 && r.left < innerWidth;
-      });
-      tiles.sort((p, q) => (li ? -1 : 1) * (p.getBoundingClientRect().left - q.getBoundingClientRect().left));
-      tiles.forEach((t, i) => t.style.setProperty('--tin', (120 + li * 260 + i * 45) + 'ms'));
+      // 先把位置一次讀完再排序；原本比較器裡每次比較都讀兩次矩形
+      const tiles = $$('.lane-tile', lane)
+        .map(t => { const r = t.getBoundingClientRect(); return { t, left: r.left, vis: r.right > 0 && r.left < innerWidth }; })
+        .filter(o => o.vis)
+        .sort((p, q) => (li ? -1 : 1) * (p.left - q.left));
+      tiles.forEach((o, i) => o.t.style.setProperty('--tin', (120 + li * 260 + i * 45) + 'ms'));
     });
   };
   const io = new IntersectionObserver(es => es.forEach(e => {
